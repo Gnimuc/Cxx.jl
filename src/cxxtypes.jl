@@ -125,11 +125,14 @@ struct CppFptr{func}
     ptr::Ptr{Cvoid}
 end
 
-# A pointer to a C++ member function.
-# Refer to the Itanium ABI for its meaning
-struct CppMFptr{base, fptr}
-    ptr::UInt64
-    adj::UInt64
+"""
+    struct CppMFptr{base,fptr}
+A pointer to a C++ member function.
+Refer to the Itanium ABI for its meaning: https://itanium-cxx-abi.github.io/cxx-abi/abi.html#member-pointers
+"""
+struct CppMFptr{base,fptr}
+    ptr::Cptrdiff_t
+    adj::Cptrdiff_t
 end
 
 # Represent a C/C++ Enum. `S` is a symbol, representing the fully qualified name

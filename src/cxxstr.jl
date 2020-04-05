@@ -4,35 +4,29 @@ global varnum = 1
 
 const jns = cglobal((:julia_namespace,libcxxffi),Ptr{Cvoid})
 
-#
-# Takes a julia value and makes in into an llvm::Constant
-#
+"""
+    llvmconst(@nospecialize val) -> pcpp"llvm::Constant"
+Takes a julia value and makes in into an `llvm::Constant`.
+"""
 function llvmconst(@nospecialize val)
     T = typeof(val)
-    if isbitstype(T)
-        if !Base.isstructtype(T)
-            if T <: AbstractFloat
-                return getConstantFloat(julia_to_llvm(T),Float64(val))
-            elseif T <: Integer
-                return getConstantInt(julia_to_llvm(T),UInt64(val))
-            elseif T <: Ptr || T <: CppPtr
-                return getConstantInt(julia_to_llvm(Ptr{Cvoid}),UInt(
-                    convert(Ptr{Cvoid}, val)))
-            else
-                error("Creating LLVM constants for type `$T` not implemented yet")
-            end
-        elseif sizeof(T) == 0
-            return getConstantStruct(getEmptyStructType(),pcpp"llvm::Constant"[])
+    !isbitstype(T) && error("Cannot turn this julia value (of type `$T`) into a constant")
+    if !Base.isstructtype(T)
+        if T <: AbstractFloat
+            return getConstantFloat(julia_to_llvm(T), Float64(val))
+        elseif T <: Integer
+            return getConstantInt(julia_to_llvm(T), UInt64(val))
+        elseif T <: Ptr || T <: CppPtr
+            return getConstantInt(julia_to_llvm(Ptr{Cvoid}), UInt64(convert(Ptr{Cvoid}, val)))
         else
-            vals = [llvmconst(getfield(val,i)) for i = 1:length(fieldnames(T))]
-            return getConstantStruct(julia_to_llvm(T),vals)
+            error("Creating LLVM constants for type `$T` not implemented yet")
         end
+    elseif sizeof(T) == 0
+        return getConstantStruct(getEmptyStructType(), pcpp"llvm::Constant"[])
+    else
+        vals = [llvmconst(getfield(val,i)) for i = 1:length(fieldnames(T))]
+        return getConstantStruct(julia_to_llvm(T), vals)
     end
-    error("Cannot turn this julia value (of type `$T`) into a constant")
-end
-
-function SetDeclInitializer(C,decl::pcpp"clang::VarDecl",val::pcpp"llvm::Constant")
-    ccall((:SetDeclInitializer,libcxxffi),Cvoid,(Ref{ClangCompiler},Ptr{Cvoid},Ptr{Cvoid}),C,decl,val)
 end
 
 const specTypes = 8
@@ -201,28 +195,26 @@ function RealizeTemplates(C,DC,e)
     end
 end
 
-function ArgCleanup(C,e,sv)
-    if isa(sv,pcpp"clang::FunctionDecl")
-        tt = Tuple{typeof(e)}
+function ArgCleanup(C, e, sv)
+    Te = typeof(e)
+    if isa(sv, pcpp"clang::FunctionDecl")
+        tt = Tuple{Te}
         f = get_llvmf_decl(tt)
         @assert f != C_NULL
-        ReplaceFunctionForDecl(C,sv,f)
-    elseif !isa(e,Type) && !isa(e,TypeVar)
-        if haskey(MappedTypes,typeof(e))
+        ReplaceFunctionForDecl(C, sv, f)
+    elseif !isa(e, Type) && !isa(e, TypeVar)
+        if haskey(MappedTypes, Te)
             # Passed as pointer
-            if sizeof(typeof(e)) == 0
-                val = C_NULL
-            else
-                val = pointer_from_objref(e)
-            end
-            lc = getConstantIntToPtr(llvmconst(val),
-                getI8PtrTy())
+            val = sizeof(Te) == 0 ? C_NULL : pointer_from_objref(e)
+            lc = GC.@preserve val getConstantIntToPtr(llvmconst(val), getI8PtrTy()) # convert to i8*
         elseif isa(e, Ptr) || isa(e, CppPtr)
-            lc = getConstantIntToPtr(llvmconst(e),
-                getI8PtrTy())
+            lc = getConstantIntToPtr(llvmconst(e), getI8PtrTy())
         else
             lc = llvmconst(e)
         end
+        # set initializer for LLVM consts
+        # - ``
+        # - `lc`: llvm const
         SetDeclInitializer(C, sv, lc)
     end
 end
@@ -268,10 +260,9 @@ function cppconst(C, Val)
     end
 end
 
-#
-# Create a clang FunctionDecl with the given body and
-# and the given types for embedded __juliavars
-#
+"""
+Create a clang FunctionDecl with the given body and and the given types for embedded __juliavars
+"""
 function CreateFunctionWithBody(C,body,args...; named_args = Any[],
         filename::Symbol = Symbol(""), line::Int = 1, col::Int = 1, disable_ac = false)
     global icxxcounter
@@ -435,7 +426,7 @@ function collect_icxx(compiler, e::Expr,icxxs)
     e
 end
 
-function process_body(compiler, str, global_scope = true, cxxt = false, filename=Symbol(""),line=1,col=1)
+function process_body(compiler, str, global_scope=true, cxxt=false, filename=Symbol(""), line=1, col=1)
     # First we transform the source buffer by pulling out julia expressions
     # and replaceing them by expression like __julia::var1, which we can
     # later intercept in our external sema source
@@ -529,10 +520,20 @@ end
     body
 end
 
-struct CodeLoc{filename,line,col}
-end
+struct CodeLoc{filename,line,col} end
 
-struct CxxTypeName{name}
+struct CxxTypeName{name} end
+
+function ParseVirtual(C,string, VirtualFileName, FileName, Line, Column, isTypeName = false, DisableAC = false)
+    EnterVirtualSource(C,string, VirtualFileName)
+    old = DisableAC && set_access_control_enabled(C, false)
+    if isTypeName
+        ParseTypeName(C)
+    else
+        ok = ParseToEndOfFile(C)
+        DisableAC && set_access_control_enabled(C, old)
+        ok || error("Could not parse C++ code at $FileName:$Line:$Column")
+    end
 end
 
 @generated function CxxType(CT, t::CxxTypeName, loc, args...)
@@ -564,9 +565,8 @@ end
             AddDeclToDeclCtx(ctx,pcpp"clang::Decl"(convert(Ptr{Cvoid},sv)))
         end
     end
-    x = ParseVirtual(C, typename,
-        VirtualFileName(string(loc.parameters[1])), loc.parameters[1],
-        loc.parameters[2], loc.parameters[3], true)
+    filename, line, col = loc.parameters
+    x = ParseVirtual(C, typename, VirtualFileName(string(filename)), filename, line, col, true)
     if !iscc
         ExitParserScope(C)
         unsafe_store!(jns,C_NULL)
@@ -690,9 +690,10 @@ function process_cxx_string(str, global_scope=true, type_name=false, __source__=
     else
         if type_name
             Expr(:call, CxxType, :__current_compiler__,
-                CxxTypeName{Symbol(String(take!(sourcebuf)))}(),CodeLoc{filename,__source__.line,col}(),exprs...)
+                 CxxTypeName{Symbol(String(take!(sourcebuf)))}(),
+                 CodeLoc{filename,__source__.line,col}(), exprs...)
         else
-            push!(sourcebuffers,(String(take!(sourcebuf)),filename,__source__.line, col, disable_ac))
+            push!(sourcebuffers, (String(take!(sourcebuf)), filename, __source__.line, col, disable_ac))
             id = length(sourcebuffers)
             build_icxx_expr(id, exprs, isexprs, icxxs, compiler, cxxstr_impl)
         end

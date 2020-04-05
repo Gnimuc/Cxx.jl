@@ -2799,44 +2799,6 @@ _Unwind_Reason_Code __cxxjl_personality_v0
 
 } // extern "C"
 
-/*
- * Yes, yes, I know. Once Cxx settles down, I'll try to get this into clang.
- * Until then, yay templates
- */
-
-template <class Tag>
-struct stowed
-{
-     static typename Tag::type value;
-};
-template <class Tag>
-typename Tag::type stowed<Tag>::value;
-
-template <class Tag, typename Tag::type x>
-struct stow_private
-{
-     stow_private() { stowed<Tag>::value = x; }
-     static stow_private instance;
-};
-template <class Tag, typename Tag::type x>
-stow_private<Tag,x> stow_private<Tag,x>::instance;
-
-
-typedef llvm::DenseMap<const clang::Type*, llvm::StructType *> TMap;
-typedef llvm::DenseMap<const clang::Type*, clang::CodeGen::CGRecordLayout *> CGRMap;
-
-extern "C" {
-
-// A tag type for A::x.  Each distinct private member you need to
-// access should have its own tag.  Each tag should contain a
-// nested ::type that is the corresponding pointer-to-member type.
-struct CodeGenTypes_RecordDeclTypes { typedef TMap (clang::CodeGen::CodeGenTypes::*type); };
-struct CodeGenTypes_CGRecordLayouts { typedef CGRMap (clang::CodeGen::CodeGenTypes::*type); };
-template class stow_private<CodeGenTypes_RecordDeclTypes,&clang::CodeGen::CodeGenTypes::RecordDeclTypes>;
-template class stow_private<CodeGenTypes_CGRecordLayouts,&clang::CodeGen::CodeGenTypes::CGRecordLayouts>;
-
-} // extern "C"
-
 #ifndef _OS_WINDOWS_
 #include <signal.h>
 static void jl_unblock_signal(int sig)

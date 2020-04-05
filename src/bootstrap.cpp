@@ -256,33 +256,6 @@ JL_DLLEXPORT void *ParseDeclaration(CxxInstance *Cxx, clang::DeclContext *DCScop
   return S->HandleDeclarator(TheScope, D, clang::MultiTemplateParamsArg());
 }
 
-JL_DLLEXPORT void ParseParameterList(CxxInstance *Cxx, void **params, size_t nparams) {
-  auto  *P = Cxx->Parser;
-  auto  *S = &Cxx->CI->getSema();
-  if (P->getPreprocessor().isIncrementalProcessingEnabled() &&
-     P->getCurToken().is(clang::tok::eof))
-         P->ConsumeToken();
-  clang::ParsingDeclSpec DS(*P);
-  clang::AccessSpecifier AS;
-  clang::ParsingDeclarator D(*P, DS, clang::DeclaratorContext::FileContext);
-
-  clang::ParsedAttributes FirstArgAttrs(P->getAttrFactory());
-  SmallVector<clang::DeclaratorChunk::ParamInfo, 16> ParamInfo;
-  clang::SourceLocation EllipsisLoc;
-
-  clang::Parser::ParseScope PrototypeScope(P,
-                            clang::Scope::FunctionPrototypeScope |
-                            clang::Scope::FunctionDeclarationScope |
-                            clang::Scope::DeclScope);
-
-  P->ParseParameterDeclarationClause(D,FirstArgAttrs,ParamInfo,EllipsisLoc);
-
-  assert(ParamInfo.size() == nparams);
-  for (size_t i = 0; i < nparams; ++i)
-    params[i] = ParamInfo[i].Param;
-}
-
-
 JL_DLLEXPORT void *ParseTypeName(CxxInstance *Cxx, int ParseAlias = false)
 {
   if (Cxx->Parser->getPreprocessor().isIncrementalProcessingEnabled() &&
@@ -837,50 +810,6 @@ static Function *CloneFunctionAndAdjust(CxxInstance *Cxx, Function *F, FunctionT
   return NewF;
 }
 
-JL_DLLEXPORT void *DeleteUnusedArguments(llvm::Function *F, uint64_t *dtodelete, size_t ntodelete)
-{
-  FunctionType *FTy = F->getFunctionType();
-  std::vector<Type*> Params(FTy->param_begin(), FTy->param_end());
-  std::vector<uint64_t> todelete;
-  todelete.insert(todelete.end(), dtodelete, dtodelete+ntodelete);
-  std::sort(todelete.begin(), todelete.end());
-  // Delete from back to front to avoid invalidating indices
-  for (auto i = todelete.rbegin(); i != todelete.rend(); ++i)
-    Params.erase(Params.begin() + *i);
-  FunctionType *NFTy = FunctionType::get(FTy->getReturnType(),
-                                                Params, false);
-  Function *NF = Function::Create(NFTy, F->getLinkage());
-  NF->copyAttributesFrom(F);
-#ifdef LLVM38
-  F->getParent()->getFunctionList().insert(F->getIterator(), NF);
-#else
-  F->getParent()->getFunctionList().insert(F, NF);
-#endif
-  NF->takeName(F);
-
-  NF->getBasicBlockList().splice(NF->begin(), F->getBasicBlockList());
-
-  auto x = todelete.begin();
-  size_t i = 0;
-  for (Function::arg_iterator I = F->arg_begin(), E = F->arg_end(),
-       I2 = NF->arg_begin(); I != E; ++i, ++I) {
-    if (*x == i) {
-      I->replaceAllUsesWith(UndefValue::get(I->getType()));
-      ++x;
-      continue;
-    }
-    // Move the name and users over to the new version.
-    I->replaceAllUsesWith(&*I2);
-    I2->takeName(&*I);
-    ++I2;
-  }
-
-  F->eraseFromParent();
-
-  return NF;
-}
-
-
 JL_DLLEXPORT void ReplaceFunctionForDecl(CxxInstance *Cxx,clang::FunctionDecl *D, llvm::Function *F, bool DoInline, bool specsig, bool firstIsEnv, bool *needsbox, void *retty, void **juliatypes, bool newgc)
 {
   const clang::CodeGen::CGFunctionInfo &FI = Cxx->CGM->getTypes().arrangeGlobalDeclaration(D);
@@ -1153,8 +1082,6 @@ JL_DLLEXPORT void *clang_parser(CxxInstance *Cxx)
 // Legacy
 
 static llvm::Type *T_int32;
-
-static bool in_cpp = false;
 
 
 }
@@ -1637,9 +1564,6 @@ static llvm::Function *cur_func = NULL;
 
 JL_DLLEXPORT void *setup_cpp_env(CxxInstance *Cxx, void *jlfunc)
 {
-    //assert(in_cpp == false);
-    //in_cpp = true;
-
     assert(Cxx->CGF != NULL);
 
     cppcall_state_t *state = new cppcall_state_t;
@@ -1690,8 +1614,6 @@ JL_DLLEXPORT bool EmitTopLevelDecl(CxxInstance *Cxx, clang::Decl *D)
 
 JL_DLLEXPORT void cleanup_cpp_env(CxxInstance *Cxx, cppcall_state_t *state)
 {
-    //assert(in_cpp == true);
-    //in_cpp = false;
 #ifdef LLVM38
     Cxx->CGF->ReturnValue = clang::CodeGen::Address(nullptr,clang::CharUnits());
 #else
@@ -2052,11 +1974,6 @@ JL_DLLEXPORT char *getTypeNameAsString(void *T)
     return cname;
 }
 
-JL_DLLEXPORT void *GetFunctionReturnType(clang::FunctionDecl *FD)
-{
-    return FD->getReturnType().getAsOpaquePtr();
-}
-
 JL_DLLEXPORT void *BuildDecltypeType(CxxInstance *Cxx, clang::Expr *E)
 {
     clang::QualType T = Cxx->CI->getSema().BuildDecltypeType(E,E->getBeginLoc());
@@ -2083,19 +2000,9 @@ JL_DLLEXPORT size_t getTDNumParameters(clang::TemplateDecl *TD)
     return TD->getTemplateParameters()->size();
 }
 
-JL_DLLEXPORT void *getTargsPointer(clang::TemplateArgumentList *targs)
-{
-    return (void*)targs->data();
-}
-
 JL_DLLEXPORT void *getTargType(const clang::TemplateArgument *targ)
 {
     return (void*)targ->getAsType().getAsOpaquePtr();
-}
-
-JL_DLLEXPORT void *getTDParamAtIdx(clang::TemplateDecl *TD, int i)
-{
-    return (void*)TD->getTemplateParameters()->getParam(i);
 }
 
 JL_DLLEXPORT void *getTargTypeAtIdx(clang::TemplateArgumentList *targs, size_t i)
@@ -2282,11 +2189,6 @@ JL_DLLEXPORT void llvmtdump(void *t)
 JL_DLLEXPORT void *createLoad(CxxIRBuilder *builder, llvm::Value *val)
 {
     return builder->CreateLoad(val);
-}
-
-JL_DLLEXPORT void *CreateConstGEP1_32(CxxIRBuilder *builder, llvm::Value *val, uint32_t idx)
-{
-    return (void*)builder->CreateConstGEP1_32(val,idx);
 }
 
 #define TMember(s)              \
@@ -2483,19 +2385,6 @@ JL_DLLEXPORT uint64_t getDCDeclKind(clang::DeclContext *DC)
   return (uint64_t)DC->getDeclKind();
 }
 
-JL_DLLEXPORT void *getDirectCallee(clang::CallExpr *e)
-{
-  return (void*)e->getDirectCallee();
-}
-
-JL_DLLEXPORT void *getCalleeReturnType(clang::CallExpr *e)
-{
-  clang::FunctionDecl *fd = e->getDirectCallee();
-  if (fd == NULL)
-    return NULL;
-  return (void*)fd->getReturnType().getAsOpaquePtr();
-}
-
 JL_DLLEXPORT void *newCXXScopeSpec(CxxInstance *Cxx)
 {
   clang::CXXScopeSpec *scope = new clang::CXXScopeSpec();
@@ -2629,11 +2518,6 @@ JL_DLLEXPORT int builtinKind(clang::Type *t)
     return cast<clang::BuiltinType>(t)->getKind();
 }
 
-JL_DLLEXPORT int isDeclInvalid(clang::Decl *D)
-{
-  return D->isInvalidDecl();
-}
-
 // Test Support
 JL_DLLEXPORT void *clang_get_cgt(CxxInstance *Cxx)
 {
@@ -2765,11 +2649,6 @@ JL_DLLEXPORT void getSpecializations(clang::FunctionTemplateDecl *FTD, std::vect
     specs->push_back(it);
 }
 
-JL_DLLEXPORT const char *getMangledFunctionName(CxxInstance *Cxx,clang::FunctionDecl *D)
-{
-  return Cxx->CGM->getMangledName(clang::GlobalDecl(D)).data();
-}
-
 JL_DLLEXPORT const void *getTemplateSpecializationArgs(clang::FunctionDecl *FD)
 {
   return (const void*)FD->getTemplateSpecializationArgs();
@@ -2880,11 +2759,6 @@ JL_DLLEXPORT void SetFDBody(clang::FunctionDecl *FD, clang::Stmt *body)
   FD->setBody(body);
 }
 
-JL_DLLEXPORT void ActOnFinishFunctionBody(CxxInstance *Cxx,clang::FunctionDecl *FD, clang::Stmt *Body)
-{
-  Cxx->CI->getSema().ActOnFinishFunctionBody(FD,Body,true);
-}
-
 JL_DLLEXPORT void *CreateLinkageSpec(CxxInstance *Cxx, clang::DeclContext *DC, unsigned kind)
 {
   return (void *)(clang::DeclContext *)clang::LinkageSpecDecl::Create(Cxx->CI->getASTContext(), DC,
@@ -2910,16 +2784,6 @@ JL_DLLEXPORT void *getParmVarDecl(clang::FunctionDecl *FD, unsigned i)
 JL_DLLEXPORT void SetDeclUsed(CxxInstance *Cxx,clang::Decl *D)
 {
   D->markUsed(Cxx->CI->getASTContext());
-}
-
-JL_DLLEXPORT int IsDeclUsed(clang::Decl *D)
-{
-  return D->isUsed();
-}
-
-JL_DLLEXPORT void *getPointerElementType(llvm::Type *T)
-{
-  return (void*)T->getPointerElementType ();
 }
 
 JL_DLLEXPORT void emitDestroyCXXObject(CxxInstance *Cxx, llvm::Value *x, clang::Type *T)
@@ -2957,30 +2821,9 @@ JL_DLLEXPORT void *getFunction(CxxInstance *Cxx, char *name, size_t length)
   return Cxx->shadow->getFunction(llvm::StringRef(name,length));
 }
 
-JL_DLLEXPORT int hasFDBody(clang::FunctionDecl *FD)
-{
-  return FD->hasBody();
-}
-
 JL_DLLEXPORT void *getUnderlyingTemplateDecl(clang::TemplateSpecializationType *TST)
 {
   return (void*)TST->getTemplateName().getAsTemplateDecl();
-}
-
-JL_DLLEXPORT void *getOrCreateTemplateSpecialization(CxxInstance *Cxx, clang::FunctionTemplateDecl *FTD, void **T, size_t nargs)
-{
-  clang::TemplateArgumentListInfo TALI;
-  clang::sema::TemplateDeductionInfo Info(clang::SourceLocation{});
-  clang::FunctionDecl *FD;
-  for (int i = 0; i < nargs; ++i) {
-    clang::QualType QT = clang::QualType::getFromOpaquePtr(T[i]);
-    clang::TemplateArgumentLoc TAL(
-        clang::TemplateArgument{QT},
-        Cxx->CI->getASTContext().getTrivialTypeSourceInfo(QT));
-    TALI.addArgument(TAL);
-  }
-  Cxx->CI->getSema().DeduceTemplateArguments(FTD, &TALI, FD, Info, false);
-  return FD;
 }
 
 JL_DLLEXPORT void *CreateIntegerLiteral(CxxInstance *Cxx, uint64_t val, void *T)
@@ -3113,27 +2956,6 @@ struct CodeGenTypes_RecordDeclTypes { typedef TMap (clang::CodeGen::CodeGenTypes
 struct CodeGenTypes_CGRecordLayouts { typedef CGRMap (clang::CodeGen::CodeGenTypes::*type); };
 template class stow_private<CodeGenTypes_RecordDeclTypes,&clang::CodeGen::CodeGenTypes::RecordDeclTypes>;
 template class stow_private<CodeGenTypes_CGRecordLayouts,&clang::CodeGen::CodeGenTypes::CGRecordLayouts>;
-
-void RegisterType(CxxInstance *Cxx, clang::TagDecl *D, llvm::StructType *ST)
-{
-  clang::RecordDecl *RD;
-  if(isa<clang::TypedefNameDecl>(D))
-  {
-    RD = dyn_cast<clang::RecordDecl>(
-      dyn_cast<clang::TypedefNameDecl>(D)->getUnderlyingType()->getAsTagDecl());
-  } else {
-    RD = cast<clang::RecordDecl>(D);
-  }
-  const clang::Type *Key = Cxx->CI->getASTContext().getTagDeclType(RD).getCanonicalType().getTypePtr();
-  (Cxx->CGM->getTypes().*stowed<CodeGenTypes_RecordDeclTypes>::value)[Key] = ST;
-  llvm::StructType *FakeST = llvm::StructType::create(jl_LLVMContext);
-  (Cxx->CGM->getTypes().*stowed<CodeGenTypes_CGRecordLayouts>::value)[Key] =
-    Cxx->CGM->getTypes().ComputeRecordLayout(RD,FakeST);
-}
-
-JL_DLLEXPORT bool isDCComplete(clang::DeclContext *DC) {
-  return (!clang::isa<clang::TagDecl>(DC) || DC->isDependentContext() || clang::cast<clang::TagDecl>(DC)->isCompleteDefinition() || clang::cast<clang::TagDecl>(DC)->isBeingDefined());
-}
 
 } // extern "C"
 

@@ -721,6 +721,77 @@ end
 getPRJLValueTy() = pcpp"llvm::Type"(ccall((:getPRJLValueTy,libcxxffi), Ptr{Cvoid}, ()))
 
 
-include("wrapper/cxxstr.jl")
-include("wrapper/codegen.jl")
-include("wrapper/initialization.jl")
+# cxxstr
+function getConstantFloat(llvmt::pcpp"llvm::Type", x::Float64)
+    pcpp"llvm::Constant"(
+        ccall((:getConstantFloat, libcxxffi), Ptr{Cvoid}, (Ptr{Cvoid}, Float64), llvmt, x)
+    )
+end
+
+function getConstantInt(llvmt::pcpp"llvm::Type", x::UInt64)
+    pcpp"llvm::Constant"(
+        ccall((:getConstantInt, libcxxffi), Ptr{Cvoid}, (Ptr{Cvoid}, UInt64), llvmt, x)
+    )
+end
+
+function getConstantStruct(llvmt::pcpp"llvm::Type", x::Vector{pcpp"llvm::Constant"})
+    pcpp"llvm::Constant"(
+        ccall((:getConstantStruct, libcxxffi), Ptr{Cvoid}, (Ptr{Cvoid}, Ptr{Ptr{Cvoid}}, Csize_t), llvmt, x, length(x))
+    )
+end
+
+function getEmptyStructType()
+    pcpp"llvm::Type"(
+        ccall((:getEmptyStructType, libcxxffi), Ptr{Cvoid}, ())
+    )
+end
+
+function getConstantIntToPtr(C::pcpp"llvm::Constant", ty)
+    pcpp"llvm::Constant"(
+        ccall((:getConstantIntToPtr, libcxxffi), Ptr{Cvoid}, (Ptr{Cvoid}, Ptr{Cvoid}), C, ty)
+    )
+end
+
+function getI8PtrTy()
+    pcpp"llvm::Type"(
+        ccall((:getI8PtrTy, libcxxffi), Ptr{Cvoid}, ())
+    )
+end
+
+function SetDeclInitializer(C, decl::pcpp"clang::VarDecl", val::pcpp"llvm::Constant")
+    ccall((:SetDeclInitializer, libcxxffi), Cvoid, (Ref{ClangCompiler}, Ptr{Cvoid}, Ptr{Cvoid}), C, decl, val)
+end
+
+
+# codegen
+function setup_cpp_env(C, f::pcpp"llvm::Function")
+    ccall((:setup_cpp_env, libcxxffi), Ptr{Cvoid}, (Ref{ClangCompiler}, Ptr{Cvoid}), C, f)
+end
+
+function cleanup_cpp_env(C, state)
+    ccall((:cleanup_cpp_env, libcxxffi), Cvoid, (Ref{ClangCompiler}, Ptr{Cvoid}), C, state)
+    RunGlobalConstructors(C)
+end
+
+# initialization
+function CollectGlobalConstructors(C)
+    pcpp"llvm::Function"(
+        ccall((:CollectGlobalConstructors, libcxxffi), Ptr{Cvoid}, (Ref{ClangCompiler},), C)
+    )
+end
+
+function defineMacro(C,Name)
+    ccall((:defineMacro, libcxxffi), Cvoid, (Ref{ClangCompiler},Ptr{UInt8},), C, Name)
+end
+
+function EnterSourceFile(C, buf, size)
+    ccall((:EnterSourceFile, libcxxffi), Cvoid, (Ref{ClangCompiler}, Ptr{UInt8}, Csize_t), C, buf, size)
+end
+
+function EnterVirtualFile(C, buf, bufsize, file, filesize)
+    ccall((:EnterVirtualFile, libcxxffi), Cvoid, (Ref{ClangCompiler}, Ptr{UInt8}, Csize_t, Ptr{UInt8}, Csize_t), C, buf, bufsize, file, filesize)
+end
+
+function _cxxparse(C)
+    ccall((:_cxxparse, libcxxffi), Cint, (Ref{ClangCompiler},), C)
+end

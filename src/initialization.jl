@@ -55,9 +55,6 @@ end
 # call all the global constructors and initialize them as needed.
 import Base: llvmcall, cglobal
 
-CollectGlobalConstructors(C) = pcpp"llvm::Function"(
-    ccall((:CollectGlobalConstructors,libcxxffi),Ptr{Cvoid},(Ref{ClangCompiler},),C))
-
 function RunGlobalConstructors(C)
     p = convert(Ptr{Cvoid}, CollectGlobalConstructors(C))
     # If p is NULL it means we have no constructors to run
@@ -91,36 +88,28 @@ cxxinclude(fname; isAngled = false) = cxxinclude(__default_compiler__, fname; is
 # be differences in behavior when compared to regular source files. In
 # particular, there is no way to specify what directory contains an anonymous
 # buffer and hence relative includes do not work.
-function EnterBuffer(C,buf)
-    ccall((:EnterSourceFile,libcxxffi),Cvoid,
-        (Ref{ClangCompiler},Ptr{UInt8},Csize_t),C,buf,sizeof(buf))
-end
+EnterBuffer(C, buf) = EnterSourceFile(C, buf, sizeof(buf))
 
 # Enter's the buffer, while pretending it's the contents of the file at path
 # `file`. Note that if `file` actually exists and is included from somewhere
 # else, `buf` will be included instead.
-function EnterVirtualSource(C,buf,file::String)
-    ccall((:EnterVirtualFile,libcxxffi),Cvoid,
-        (Ref{ClangCompiler},Ptr{UInt8},Csize_t,Ptr{UInt8},Csize_t),
-        C,buf,sizeof(buf),file,sizeof(file))
-end
-EnterVirtualSource(C,buf,file::Symbol) = EnterVirtualSource(C,buf,string(file))
+EnterVirtualSource(C, buf, file::String) = EnterVirtualFile(C, buf, sizeof(buf), file, sizeof(file))
+EnterVirtualSource(C, buf, file::Symbol) = EnterVirtualSource(C, buf, string(file))
 
-# Parses everything until the end of the currently entered source file
-# Returns true if the file was successfully parsed (i.e. no error occurred)
+"""
+    ParseToEndOfFile(C) -> Bool
+Parses everything until the end of the currently entered source file.
+Return true if the file was successfully parsed (i.e. no error occurred).
+"""
 function ParseToEndOfFile(C)
-    hadError = ccall((:_cxxparse,libcxxffi),Cint,(Ref{ClangCompiler},),C) == 0
-    if !hadError
-        RunGlobalConstructors(C)
-    end
+    hadError = _cxxparse(C) == 0
+    !hadError && RunGlobalConstructors(C)
     !hadError
 end
 
 function ParseTypeName(C, ParseAlias = false)
-    ret = ccall((:ParseTypeName,libcxxffi),Ptr{Cvoid},(Ref{ClangCompiler},Cint),C, ParseAlias)
-    if ret == C_NULL
-        error("Could not parse type name")
-    end
+    ret = ccall((:ParseTypeName, libcxxffi), Ptr{Cvoid}, (Ref{ClangCompiler}, Cint), C, ParseAlias)
+    ret == C_NULL && error("Could not parse type name")
     QualType(ret)
 end
 
@@ -137,26 +126,6 @@ function cxxparse(C, string, isTypeName = false, ParseAlias = false, DisableAC =
 end
 cxxparse(C::CxxInstance,string) = cxxparse(instance(C),string)
 cxxparse(string) = cxxparse(__default_compiler__,string)
-
-function ParseVirtual(C,string, VirtualFileName, FileName, Line, Column, isTypeName = false, DisableAC = false)
-    EnterVirtualSource(C,string, VirtualFileName)
-    old = DisableAC && set_access_control_enabled(C, false)
-    if isTypeName
-        ParseTypeName(C)
-    else
-        ok = ParseToEndOfFile(C)
-        DisableAC && set_access_control_enabled(C, old)
-        ok || error("Could not parse C++ code at $FileName:$Line:$Column")
-    end
-end
-
-setup_cpp_env(C, f::pcpp"llvm::Function") =
-    ccall((:setup_cpp_env,libcxxffi),Ptr{Cvoid},(Ref{ClangCompiler},Ptr{Cvoid}),C,f)
-
-function cleanup_cpp_env(C, state)
-    ccall((:cleanup_cpp_env,libcxxffi),Cvoid,(Ref{ClangCompiler}, Ptr{Cvoid}),C,state)
-    RunGlobalConstructors(C)
-end
 
 # Include paths and macro handling
 
@@ -192,9 +161,7 @@ addHeaderDir(dirname; kwargs...) = addHeaderDir(__default_compiler__,dirname; kw
 
 Define a C++ macro. Equivalent to `cxx"#define \$name"`.
 """
-function defineMacro(C,Name)
-    ccall((:defineMacro, libcxxffi), Cvoid, (Ref{ClangCompiler},Ptr{UInt8},), C, Name)
-end
+function defineMacro end
 defineMacro(C::CxxInstance,Name) = defineMacro(instance(C),Name)
 defineMacro(Name) = defineMacro(__default_compiler__,Name)
 

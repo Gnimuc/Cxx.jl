@@ -1608,19 +1608,6 @@ JL_DLLEXPORT void init_clang_instance(CxxInstance *Cxx, const char *Triple, cons
     finish_clang_init(Cxx, EmitPCH, PCHBuffer, PCHBufferSize, t);
 }
 
-JL_DLLEXPORT void init_clang_instance_from_invocation(CxxInstance *Cxx, clang::CompilerInvocation *Inv)
-{
-    Cxx->CI = new clang::CompilerInstance;
-#ifdef LLVM40
-    Cxx->CI->setInvocation(std::shared_ptr<clang::CompilerInvocation>(Inv));
-#else
-    Cxx->CI->setInvocation(Inv);
-#endif
-    set_common_options(Cxx);
-    time_t t(0);
-    finish_clang_init(Cxx, false, nullptr, 0, t);
-}
-
 #define xstringify(s) stringify(s)
 #define stringify(s) #s
 JL_DLLEXPORT void apply_default_abi(CxxInstance *Cxx)

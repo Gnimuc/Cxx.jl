@@ -44,13 +44,6 @@ function setup_instance(PCHBuffer = []; makeCCompiler=false, target = C_NULL, CP
     x[]
 end
 
-function setup_instance_from_inovcation(invocation)
-    x = Ref{ClangCompiler}()
-    ccall((:init_clang_instance_from_invocation,libcxxffi),Cvoid,
-        (Ptr{Cvoid},Ptr{Cvoid}), x, invocation)
-    x[]
-end
-
 # Running global constructors
 #
 # When declaring new global variables that are not POD types (i.e. have

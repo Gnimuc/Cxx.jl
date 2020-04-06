@@ -2311,18 +2311,6 @@ JL_DLLEXPORT void ExtendNNSIdentifier(CxxInstance *Cxx,clang::NestedNameSpecifie
   builder->Extend(Cxx->CI->getASTContext(),Id,getTrivialSourceLocation(Cxx),getTrivialSourceLocation(Cxx));
 }
 
-JL_DLLEXPORT void ExtendNNSType(CxxInstance *Cxx,clang::NestedNameSpecifierLocBuilder *builder, void *t)
-{
-  clang::TypeLocBuilder TLBuilder;
-  clang::QualType T = clang::QualType::getFromOpaquePtr(t);
-  TLBuilder.push<clang::QualifiedTypeLoc>(T);
-  builder->Extend(Cxx->CI->getASTContext(),clang::SourceLocation(),
-    TLBuilder.getTypeLocInContext(
-      Cxx->CI->getASTContext(),
-      T),
-    getTrivialSourceLocation(Cxx));
-}
-
 JL_DLLEXPORT void *makeFunctionType(CxxInstance *Cxx, void *rt, void **argts, size_t nargs)
 {
   clang::QualType T;

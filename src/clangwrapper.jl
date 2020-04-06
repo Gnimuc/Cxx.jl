@@ -311,9 +311,6 @@ end
 ExtendNNS(C,b::pcpp"clang::NestedNameSpecifierLocBuilder", ns::pcpp"clang::NamespaceDecl") =
     ccall((:ExtendNNS,libcxxffi),Cvoid,(Ref{ClangCompiler},Ptr{Cvoid},Ptr{Cvoid}),C,b,ns)
 
-ExtendNNSType(C,b::pcpp"clang::NestedNameSpecifierLocBuilder", t::QualType) =
-    ccall((:ExtendNNSType,libcxxffi),Cvoid,(Ref{ClangCompiler},Ptr{Cvoid},Ptr{Cvoid}),C,b,t)
-
 ExtendNNSIdentifier(C,b::pcpp"clang::NestedNameSpecifierLocBuilder", name) =
     ccall((:ExtendNNSIdentifier,libcxxffi),Cvoid,(Ref{ClangCompiler},Ptr{Cvoid},Ptr{UInt8}),C,b,name)
 

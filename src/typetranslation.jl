@@ -96,14 +96,7 @@ cppconvert(x) = x
 # E.g. if the CxxScopeSpec already contains ::foo, it could be extended to
 # ::foo::bar by calling nnsexpend(S,"bar")
 #
-function nnsextend(C,cxxscope,part)
-    if cxxscope != C_NULL
-        errorOccured = BuildNNS(C,cxxscope,part)
-        if errorOccured
-            error("Failed to extend NNS with part $part")
-        end
-    end
-end
+
 
 function lookup_name(C::ClangCompiler,parts, cxxscope = C_NULL, start=translation_unit(C), addlast=false)
     cur = start
@@ -438,11 +431,6 @@ end
 
 include(joinpath(@__DIR__, "..", "deps", "usr", "clang_constants.jl"))
 
-# TODO: Autogenerate this from the appropriate header
-# Decl::Kind
-const LinkageSpec = 10
-
-
 getPointeeType(t::pcpp"clang::Type") = QualType(ccall((:getPointeeType,libcxxffi),Ptr{Cvoid},(Ptr{Cvoid},),t))
 getPointeeType(t::QualType) = getPointeeType(extractTypePtr(t))
 canonicalType(t::pcpp"clang::Type") = pcpp"clang::Type"(ccall((:canonicalType,libcxxffi),Ptr{Cvoid},(Ptr{Cvoid},),t))
@@ -625,11 +613,4 @@ function juliatype(t::QualType, quoted = false, typeargs = Dict{Int,Cvoid}();
         return T
     end
     quoted ? :($T) : T
-end
-
-# Some other utilities (some of which are used externally)
-
-function getFTyReturnType(T::QualType)
-    @assert isFunctionType(T)
-    getFunctionTypeReturnType(extractTypePtr(T))
 end

@@ -59,23 +59,6 @@ function ssv(C, @nospecialize(e), ctx, varnum, sourcebuf, typeargs=Dict{Cvoid,Cv
     e, sv
 end
 
-function CreateLambdaCallExpr(C, T, argt = [])
-    meth = getLambdaCallOperator(getAsCXXRecordDecl(T))
-
-    callargs, cpvds = buildargexprs(C,argt)
-    PCvoid = cpptype(C,Ptr{Cvoid})
-    pvd = CreateParmVarDecl(C, PCvoid)
-    pvds = [pvd]
-    append!(pvds, cpvds)
-
-    Tptr = pointerTo(C,T)
-    Closure = CreateCStyleCast(C,createCast(C,CreateDeclRefExpr(C,pvd),PCvoid,CK_LValueToRValue),Tptr)
-    ce = CreateCallExpr(C,createDerefExpr(C,Closure),callargs)
-
-    rt = GetExprResultType(ce)
-    ce, rt, pvds
-end
-
 const lambda_roots = Function[]
 
 function latest_world_return_type(tt)

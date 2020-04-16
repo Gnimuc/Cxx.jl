@@ -376,24 +376,6 @@ JL_DLLEXPORT void defineMacro(CxxInstance *Cxx,const char *Name)
 }
 
 // For typetranslation.jl
-JL_DLLEXPORT bool BuildNNS(CxxInstance *Cxx, clang::CXXScopeSpec *spec, const char *Name)
-{
-  clang::Preprocessor &PP = Cxx->CI->getPreprocessor();
-  // Get the identifier.
-  clang::IdentifierInfo *Id = PP.getIdentifierInfo(Name);
-  clang::Sema::NestedNameSpecInfo NNSI(Id,
-    getTrivialSourceLocation(Cxx),
-    getTrivialSourceLocation(Cxx),
-    clang::QualType());
-    return Cxx->CI->getSema().BuildCXXNestedNameSpecifier(
-    nullptr, NNSI,
-    false,
-    *spec,
-    nullptr,
-    false,
-    nullptr
-  );
-}
 
 JL_DLLEXPORT void *lookup_name(CxxInstance *Cxx, char *name, clang::DeclContext *ctx)
 {
@@ -911,88 +893,6 @@ JL_DLLEXPORT void ActOnFinishNamespaceDef(CxxInstance *Cxx, clang::Decl *D)
 
 // For codegen.jl
 
-JL_DLLEXPORT int typeconstruct(CxxInstance *Cxx,void *type, clang::Expr **rawexprs, size_t nexprs, void **ret)
-{
-    clang::QualType Ty = clang::QualType::getFromOpaquePtr(type);
-    clang::MultiExprArg Exprs(rawexprs,nexprs);
-
-    clang::Sema &sema = Cxx->CI->getSema();
-    clang::TypeSourceInfo *TInfo = Cxx->CI->getASTContext().getTrivialTypeSourceInfo(Ty);
-
-    if (Ty->isDependentType() || clang::CallExpr::hasAnyTypeDependentArguments(Exprs)) {
-        *ret = clang::CXXUnresolvedConstructExpr::Create(Cxx->CI->getASTContext(), TInfo,
-                                                      getTrivialSourceLocation(Cxx),
-                                                      Exprs,
-                                                      getTrivialSourceLocation(Cxx));
-        return true;
-    }
-
-    clang::ExprResult Result;
-
-    if (Exprs.size() == 1) {
-        clang::Expr *Arg = Exprs[0];
-        Result = sema.BuildCXXFunctionalCastExpr(TInfo, Ty, getTrivialSourceLocation(Cxx),
-          Arg, getTrivialSourceLocation(Cxx));
-        if (Result.isInvalid())
-          return false;
-
-        *ret = Result.get();
-        return true;
-    }
-
-    if (!Ty->isVoidType() &&
-        sema.RequireCompleteType(getTrivialSourceLocation(Cxx), Ty,
-                            clang::diag::err_invalid_incomplete_type_use)) {
-        return false;
-    }
-
-    if (sema.RequireNonAbstractType(getTrivialSourceLocation(Cxx), Ty,
-                               clang::diag::err_allocation_of_abstract_type)) {
-        return false;
-    }
-
-    clang::InitializedEntity Entity = clang::InitializedEntity::InitializeTemporary(TInfo);
-    clang::InitializationKind Kind =
-        Exprs.size() ?  clang::InitializationKind::CreateDirect(getTrivialSourceLocation(Cxx),
-          getTrivialSourceLocation(Cxx), getTrivialSourceLocation(Cxx))
-        : clang::InitializationKind::CreateValue(getTrivialSourceLocation(Cxx),
-          getTrivialSourceLocation(Cxx), getTrivialSourceLocation(Cxx));
-    clang::InitializationSequence InitSeq(sema, Entity, Kind, Exprs);
-    Result = InitSeq.Perform(sema, Entity, Kind, Exprs);
-
-    if (Result.isInvalid())
-      return false;
-
-    *ret = Result.get();
-    return true;
-}
-
-JL_DLLEXPORT void *BuildCXXNewExpr(CxxInstance *Cxx, clang::Type *type, clang::Expr **exprs, size_t nexprs)
-{
-  clang::QualType Ty = clang::QualType::getFromOpaquePtr(type);
-  clang::SourceManager &sm = Cxx->CI->getSourceManager();
-  return (void*) Cxx->CI->getSema().BuildCXXNew(
-                    clang::SourceRange(),
-                    false,
-                    getTrivialSourceLocation(Cxx),
-                    clang::MultiExprArg(),
-                    getTrivialSourceLocation(Cxx),
-                    clang::SourceRange(),
-                    Ty,
-                    Cxx->CI->getASTContext().getTrivialTypeSourceInfo(Ty),
-                    NULL,
-                    clang::SourceRange(sm.getLocForStartOfFile(sm.getMainFileID()),
-                                       sm.getLocForStartOfFile(sm.getMainFileID())),
-                    clang::ParenListExpr::Create(
-                        Cxx->CI->getASTContext(),
-                        getTrivialSourceLocation(Cxx),
-                        ArrayRef<clang::Expr*>(exprs, nexprs),
-                        getTrivialSourceLocation(Cxx)
-                      )
-                  ).get();
-  //return (clang_astcontext) new clang::CXXNewExpr(clang_astcontext, false, nE, dE, )
-}
-
 JL_DLLEXPORT void *EmitCXXNewExpr(CxxInstance *Cxx, clang::Expr *E)
 {
   assert(isa<clang::CXXNewExpr>(E));
@@ -1018,14 +918,6 @@ JL_DLLEXPORT void *build_call_to_member(CxxInstance *Cxx, clang::Expr *MemExprE,
                       getTrivialSourceLocation(Cxx)
                     );
   }
-}
-
-JL_DLLEXPORT void *PerformMoveOrCopyInitialization(CxxInstance *Cxx, void *rt, clang::Expr *expr)
-{
-  clang::InitializedEntity Entity = clang::InitializedEntity::InitializeTemporary(
-    clang::QualType::getFromOpaquePtr(rt));
-  return (void*)Cxx->CI->getSema().PerformMoveOrCopyInitialization(Entity, NULL,
-    clang::QualType::getFromOpaquePtr(rt), expr, true).get();
 }
 
 // For CxxREPL
@@ -1726,11 +1618,6 @@ JL_DLLEXPORT void *CreateDeclRefExpr(CxxInstance *Cxx,clang::ValueDecl *D, clang
             T.getNonReferenceType(), islvalue ? clang::VK_LValue : clang::VK_RValue);
 }
 
-JL_DLLEXPORT void *EmitDeclRef(CxxInstance *Cxx, clang::DeclRefExpr *DRE)
-{
-    return Cxx->CGF->EmitDeclRefLValue(DRE).getPointer();
-}
-
 JL_DLLEXPORT void *DeduceReturnType(clang::Expr *expr)
 {
     return expr->getType().getAsOpaquePtr();
@@ -1785,15 +1672,6 @@ JL_DLLEXPORT void emitexprtomem(CxxInstance *Cxx,clang::Expr *E, llvm::Value *ad
     Cxx->CGF->EmitAnyExprToMem(E,
       clang::CodeGen::Address(addr,clang::CharUnits::One()),
       clang::Qualifiers(), isInit);
-}
-
-JL_DLLEXPORT void *EmitAnyExpr(CxxInstance *Cxx, clang::Expr *E, llvm::Value *rslot)
-{
-    clang::CodeGen::RValue ret = Cxx->CGF->EmitAnyExpr(E);
-    if (ret.isScalar())
-      return ret.getScalarVal();
-    else
-      return ret.getAggregateAddress().getPointer();
 }
 
 JL_DLLEXPORT void *get_nth_argument(Function *f, size_t n)
@@ -2022,11 +1900,6 @@ JL_DLLEXPORT void *createCast(CxxInstance *Cxx,clang::Expr *expr, clang::Type *t
     (clang::CastKind)kind,expr,NULL,clang::VK_RValue);
 }
 
-JL_DLLEXPORT void *CreateBinOp(CxxInstance *Cxx, clang::Scope *S, int opc, clang::Expr *LHS, clang::Expr *RHS)
-{
-  return (void*)Cxx->CI->getSema().BuildBinOp(S,clang::SourceLocation(),(clang::BinaryOperatorKind)opc,LHS,RHS).get();
-}
-
 JL_DLLEXPORT void *BuildMemberReference(CxxInstance *Cxx, clang::Expr *base, clang::Type *t, int IsArrow, char *name)
 {
     clang::DeclarationName DName(&Cxx->CI->getASTContext().Idents.get(name));
@@ -2034,20 +1907,6 @@ JL_DLLEXPORT void *BuildMemberReference(CxxInstance *Cxx, clang::Expr *base, cla
     clang::CXXScopeSpec scope;
     return (void*)sema.BuildMemberReferenceExpr(base,clang::QualType(t,0), getTrivialSourceLocation(Cxx), IsArrow, scope,
       getTrivialSourceLocation(Cxx), nullptr, clang::DeclarationNameInfo(DName, getTrivialSourceLocation(Cxx)), nullptr, nullptr).get();
-}
-
-JL_DLLEXPORT void *BuildDeclarationNameExpr(CxxInstance *Cxx, char *name, clang::DeclContext *ctx)
-{
-    clang::Sema &sema = Cxx->CI->getSema();
-    clang::SourceManager &sm = Cxx->CI->getSourceManager();
-    clang::CXXScopeSpec spec;
-    spec.setBeginLoc(sm.getLocForStartOfFile(sm.getMainFileID()));
-    spec.setEndLoc(sm.getLocForStartOfFile(sm.getMainFileID()));
-    clang::DeclarationName DName(&Cxx->CI->getASTContext().Idents.get(name));
-    sema.RequireCompleteDeclContext(spec,ctx);
-    clang::LookupResult R(sema, DName, getTrivialSourceLocation(Cxx), clang::Sema::LookupAnyName);
-    sema.LookupQualifiedName(R, ctx, false);
-    return (void*)sema.BuildDeclarationNameExpr(spec,R,false).get();
 }
 
 JL_DLLEXPORT void *clang_get_builder(CxxInstance *Cxx)
@@ -2088,11 +1947,6 @@ JL_DLLEXPORT void llvmdump(void *t)
 JL_DLLEXPORT void llvmtdump(void *t)
 {
     ((llvm::Type*) t)->print(llvm::errs(), false);
-}
-
-JL_DLLEXPORT void *createLoad(CxxIRBuilder *builder, llvm::Value *val)
-{
-    return builder->CreateLoad(val);
 }
 
 #define TMember(s)              \
@@ -2265,49 +2119,9 @@ JL_DLLEXPORT void *getLLVMPointerTo(llvm::Type *t)
   return (void*)t->getPointerTo();
 }
 
-JL_DLLEXPORT void *getContext(clang::Decl *d)
-{
-  return (void*)d->getDeclContext();
-}
-
-JL_DLLEXPORT void *getParentContext(clang::DeclContext *DC)
-{
-  return (void*)DC->getParent();
-}
-
 JL_DLLEXPORT void *getCxxMDParent(clang::CXXMethodDecl *CxxMD)
 {
   return CxxMD->getParent();
-}
-
-JL_DLLEXPORT uint64_t getDCDeclKind(clang::DeclContext *DC)
-{
-  return (uint64_t)DC->getDeclKind();
-}
-
-JL_DLLEXPORT void *newCXXScopeSpec(CxxInstance *Cxx)
-{
-  clang::CXXScopeSpec *scope = new clang::CXXScopeSpec();
-  scope->MakeGlobal(Cxx->CI->getASTContext(),getTrivialSourceLocation(Cxx));
-  return (void*)scope;
-}
-
-JL_DLLEXPORT void deleteCXXScopeSpec(clang::CXXScopeSpec *spec)
-{
-  delete spec;
-}
-
-JL_DLLEXPORT void ExtendNNS(CxxInstance *Cxx,clang::NestedNameSpecifierLocBuilder *builder, clang::NamespaceDecl *d)
-{
-  builder->Extend(Cxx->CI->getASTContext(),d,getTrivialSourceLocation(Cxx),getTrivialSourceLocation(Cxx));
-}
-
-JL_DLLEXPORT void ExtendNNSIdentifier(CxxInstance *Cxx,clang::NestedNameSpecifierLocBuilder *builder, const char *Name)
-{
-  clang::Preprocessor &PP = Cxx->Parser->getPreprocessor();
-  // Get the identifier.
-  clang::IdentifierInfo *Id = PP.getIdentifierInfo(Name);
-  builder->Extend(Cxx->CI->getASTContext(),Id,getTrivialSourceLocation(Cxx),getTrivialSourceLocation(Cxx));
 }
 
 JL_DLLEXPORT void *makeFunctionType(CxxInstance *Cxx, void *rt, void **argts, size_t nargs)
@@ -2531,11 +2345,6 @@ JL_DLLEXPORT const void *getTemplateSpecializationArgs(clang::FunctionDecl *FD)
   return (const void*)FD->getTemplateSpecializationArgs();
 }
 
-JL_DLLEXPORT void *getLambdaCallOperator(clang::CXXRecordDecl *R)
-{
-  return R->getLambdaCallOperator();
-}
-
 JL_DLLEXPORT void *getCallOperator(CxxInstance *Cxx, clang::CXXRecordDecl *R)
 {
   clang::DeclarationName Name =
@@ -2556,11 +2365,6 @@ JL_DLLEXPORT void *getCallOperator(CxxInstance *Cxx, clang::CXXRecordDecl *R)
 JL_DLLEXPORT bool isCxxDLambda(clang::CXXRecordDecl *R)
 {
   return R->isLambda();
-}
-
-JL_DLLEXPORT void *getFunctionTypeReturnType(void *T)
-{
-  return ((clang::FunctionType*)T)->getReturnType().getAsOpaquePtr();
 }
 
 /// From SemaOverload.cpp
@@ -2599,13 +2403,6 @@ CreateFunctionRefExpr(clang::Sema &S, clang::FunctionDecl *Fn, clang::NamedDecl 
   if (E.isInvalid())
     return clang::ExprError();
   return E;
-}
-
-JL_DLLEXPORT void *CreateCStyleCast(CxxInstance *Cxx, clang::Expr *E, clang::Type *T)
-{
-  clang::QualType QT(T,0);
-  return (void*)clang::CStyleCastExpr::Create(Cxx->CI->getASTContext(), QT, clang::VK_RValue, clang::CK_BitCast,
-    E, nullptr, Cxx->CI->getASTContext().getTrivialTypeSourceInfo(QT), clang::SourceLocation(), clang::SourceLocation());
 }
 
 JL_DLLEXPORT void *CreateReturnStmt(CxxInstance *Cxx, clang::Expr *E)
@@ -2661,18 +2458,6 @@ JL_DLLEXPORT void *getParmVarDecl(clang::FunctionDecl *FD, unsigned i)
 JL_DLLEXPORT void SetDeclUsed(CxxInstance *Cxx,clang::Decl *D)
 {
   D->markUsed(Cxx->CI->getASTContext());
-}
-
-JL_DLLEXPORT void emitDestroyCXXObject(CxxInstance *Cxx, llvm::Value *x, clang::Type *T)
-{
-  clang::CXXRecordDecl *RD = T->getAsCXXRecordDecl();
-  clang::CXXDestructorDecl *Destructor = Cxx->CI->getSema().LookupDestructor(RD);
-  Cxx->CI->getSema().MarkFunctionReferenced(clang::SourceLocation(), Destructor);
-  Cxx->CI->getSema().DefineUsedVTables();
-  Cxx->CI->getSema().PerformPendingInstantiations(false);
-  Cxx->CGF->destroyCXXObject(*Cxx->CGF,
-                             clang::CodeGen::Address(x,clang::CharUnits::One()),
-                             clang::QualType(T,0));
 }
 
 JL_DLLEXPORT bool hasTrivialDestructor(CxxInstance *Cxx, clang::CXXRecordDecl *RD)
@@ -2785,39 +2570,3 @@ _Unwind_Reason_Code __cxxjl_personality_v0
 }
 
 } // extern "C"
-
-#ifndef _OS_WINDOWS_
-#include <signal.h>
-static void jl_unblock_signal(int sig)
-{
-    // Put in a separate function to save some stack space since
-    // sigset_t can be pretty big.
-    sigset_t sset;
-    sigemptyset(&sset);
-    sigaddset(&sset, sig);
-    sigprocmask(SIG_UNBLOCK, &sset, NULL);
-}
-
-extern "C" {
-void *theexception;
-extern void jl_throw(void *);
-void abrt_handler(int sig, siginfo_t *info, void *)
-{
-  jl_unblock_signal(sig);
-  jl_throw(theexception);
-}
-
-JL_DLLEXPORT void InstallSIGABRTHandler(void *exception)
-{
-  theexception = exception;
-  struct sigaction act;
-  memset(&act, 0, sizeof(struct sigaction));
-  sigemptyset(&act.sa_mask);
-  act.sa_sigaction = abrt_handler;
-  act.sa_flags = SA_ONSTACK | SA_SIGINFO;
-  if (sigaction(SIGABRT, &act, NULL) < 0) {
-    abort(); // hah
-  }
-}
-} // extern "C"
-#endif // _OS_WINDOWS_

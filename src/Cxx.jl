@@ -67,7 +67,7 @@
 # is inlined.
 #
 # In this package, however, we use the second form of llvmcall, which differs
-# from the first inthat the IR argument is not a string, but a Ptr{Cvoid}. In
+# from the first in that the IR argument is not a string, but a Ptr{Cvoid}. In
 # this case, julia will skip the wrapping and proceed straight to argument
 # translation and inlining.
 #
@@ -153,8 +153,7 @@ using Base.Sys: isapple, isbsd, islinux, isunix, iswindows
 
 # These are re-exported from Cxx
 export cast,
-       @cxx_str, @cxx_mstr, @icxx_str, @icxx_mstr, @cxxt_str,
-       @cxx, @cxxnew, @jpcpp_str, @exception, @cxxm,
+       @cxx_str, @cxx_mstr, @icxx_str, @icxx_mstr, @cxxt_str, @jpcpp_str,
        addHeaderDir, defineMacro, cxxinclude, cxxparse, new_clang_instance,
        C_User, C_System, C_ExternCSystem
 
@@ -169,10 +168,8 @@ include("clangwrapper.jl")
 include("typetranslation.jl")
 include("initialization.jl")
 include("codegen.jl")
-include("cxxmacro.jl")
 include("cxxstr.jl")
 include("utils.jl")
-include("exceptions.jl")
 
 # In precompilation mode, we do still need clang, so do it manually
 __init__()
@@ -198,38 +195,6 @@ export cast,
        @cxx, @cxxnew, @pcpp_str, @jpcpp_str, @exception, @cxxm,
        addHeaderDir, defineMacro, cxxinclude, cxxparse, new_clang_instance,
        C_User, C_System, C_ExternCSystem
-
-include("CxxREPL/replpane.jl")
-
-# C++ standard library helpers
-module CxxStd
-
-    using ..CxxCore
-    using ..Cxx
-    include("show.jl")
-    include("autowrap.jl")
-    include("std.jl")
-
-end
-
-# Use as Cxx.
-import .CxxStd: @list
-
-module CxxREPLInit
-    using ..CxxCore
-    using ..CxxREPL
-    function __init__()
-        if isdefined(Base, :active_repl)
-            CxxREPL.RunCxxREPL(CxxCore.__current_compiler__)
-        end
-    end
-end
-
-module CxxExceptionInit
-    using ..CxxCore
-    __init__() = ccall(:jl_generating_output, Cint, ()) == 0 &&
-        eval(:(CxxCore.setup_exception_callback()))
-end
 
 module CxxDumpPCH
     using ..CxxCore

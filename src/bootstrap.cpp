@@ -1144,11 +1144,11 @@ static void set_default_clang_options(CxxInstance *Cxx, bool CCompiler, const ch
         Cxx->CI->getLangOpts().MicrosoftExt = 0;
         Cxx->CI->getLangOpts().RTTI = use_rtti;
         Cxx->CI->getLangOpts().RTTIData = use_rtti;
-        Cxx->CI->getLangOpts().Exceptions = 1;          // exception handling
-        Cxx->CI->getLangOpts().ObjCExceptions = 1;  //  Objective-C exceptions
-        Cxx->CI->getLangOpts().CXXExceptions = 1;   // C++ exceptions
+        Cxx->CI->getLangOpts().Exceptions = 0;          // exception handling
+        Cxx->CI->getLangOpts().ObjCExceptions = 0;  //  Objective-C exceptions
+        Cxx->CI->getLangOpts().CXXExceptions = 0;   // C++ exceptions
 #ifdef _OS_WINDOWS_
-	Cxx->CI->getLangOpts().SEHExceptions = 1; // Julia uses SEH exception handling on Windows
+	Cxx->CI->getLangOpts().SEHExceptions = 0; // Julia uses SEH exception handling on Windows
 #endif
         Cxx->CI->getLangOpts().CXXOperatorNames = 1;
         Cxx->CI->getLangOpts().DoubleSquareBracketAttributes = 1;
@@ -2437,6 +2437,7 @@ JL_DLLEXPORT void InsertIntoShadowModule(CxxInstance *Cxx, llvm::Function *F)
   NewF->setPersonalityFn(nullptr);
 }
 
+// show.jl
 extern void *jl_pchar_to_string(const char *str, size_t len);
 JL_DLLEXPORT void *getTypeName(CxxInstance *Cxx, void *Ty)
 {

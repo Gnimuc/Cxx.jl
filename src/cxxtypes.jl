@@ -65,13 +65,6 @@ It is usually used directly as a type, rather than as an instance.
 struct CppBaseType{s} end
 
 """
-    struct CppTemplate{T,targs}
-A templated type where `T` is the [`CppBaseType`](@ref) to be templated and
-`targs` is a tuple of template arguments.
-"""
-struct CppTemplate{T,targs} end
-
-"""
     struct CxxQualType{T,CVR}
 A base type with extra CVR qualifications
 """
@@ -85,7 +78,7 @@ struct CxxArrayType{T} end
 
 """
     mutable struct CppValue{T,N}
-The equivalent of a C++ on-stack value. `T` is a [`CppBaseType`](@ref) or a [`CppTemplate`](@ref).
+The equivalent of a C++ on-stack value. `T` is a [`CppBaseType`](@ref).
 """
 mutable struct CppValue{T,N}
     data::NTuple{N,UInt8}
@@ -109,7 +102,7 @@ Base.convert(::Type{T}, p::CppRef{T}) where {T<:CxxBuiltinTs} = unsafe_load(p)
     primitive type CppPtr{T,CVR}
 The equivalent of a C++ pointer.
 `T` can be a [`CppValue`](@ref), [`CppPtr`](@ref), etc. depending on the pointed to type,
-but is never a [`CppBaseType`](@ref) or [`CppTemplate`](@ref) directly.
+but is never a [`CppBaseType`](@ref) directly.
 # TODO: Maybe use Ptr{CppValue} and Ptr{CppFunc} instead?
 # struct CppPtr{T,CVR}
 #     ptr::Ptr{Cvoid}

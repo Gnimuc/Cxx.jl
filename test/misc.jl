@@ -310,22 +310,6 @@ tmp = icxx"testNegativeValue<-1>();"
 # Broken Testcase while porting to jb/functions
 # The problematic case was both a Julia and a C++ side capture
 
-function fooTheLambda()
-    ret = Expr(:block)
-    f = (arg1,)->begin
-            @assert Cxx.CxxCore.lambdacall(Cxx.__default_compiler__,arg1) == 1
-            @assert pointer_from_objref(ret) != C_NULL
-            @assert ret.head == :block
-        end
-    icxx"""
-        int x = 1;
-        auto &f = $f;
-        f([&](){ return x; });
-        return;
-    """
-end
-fooTheLambda()
-
 # 217
 T217 = Cdouble; arg217 = 1.0;
 icxx"std::vector<$T217>{$arg217};";

@@ -172,11 +172,11 @@ function InstantiateSpecializationsForType(C, DC, LambdaT)
     end
 end
 
-function RealizeTemplates(C,DC,e)
-    if haskey(MappedTypes, typeof(e))
-        InstantiateSpecializationsForType(C, DC, typeof(e))
-    end
-end
+# function RealizeTemplates(C,DC,e)
+#     if haskey(MappedTypes, typeof(e))
+#         InstantiateSpecializationsForType(C, DC, typeof(e))
+#     end
+# end
 
 function ArgCleanup(C, e, sv)
     Te = typeof(e)
@@ -608,7 +608,7 @@ function process_cxx_string(str, global_scope=true, type_name=false, __source__=
                     end
                 end)
             push!(argcleanup.args,:($(ArgCleanup)($instance_var,$s,$sv)))
-            push!(postparse.args,:($(RealizeTemplates)($instance_var,$ctx,$s)))
+            # push!(postparse.args,:($(RealizeTemplates)($instance_var,$ctx,$s)))
             startvarnum += 1
         end
         parsecode = filename == Symbol("") ? :( $(cxxparse)($instance_var,

@@ -442,8 +442,7 @@ JL_DLLEXPORT void *SpecializeClass(CxxInstance *Cxx, clang::ClassTemplateDecl *t
                             tmplt->getTemplatedDecl()->getBeginLoc(),
                             tmplt->getLocation(),
                             tmplt,
-                            targs,
-                            nargs,
+                            ArrayRef<clang::TemplateArgument>{targs,nargs},
                             nullptr);
     tmplt->AddSpecialization(ret, InsertPos);
     if (tmplt->isOutOfLine())

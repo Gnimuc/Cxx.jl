@@ -159,7 +159,7 @@ export cast,
 
 # These are internal but useful for hacking
 export CppValue, CppRef, CppPtr, cpptype, CxxQualType, CppBaseType,
-    CppTemplate, CxxBuiltinTypes, CxxBuiltinTs, CxxException, CppFptr, CppMFptr
+    CppTemplate, CxxBuiltinTypes, CxxBuiltinTs, CxxException, CppFptr
 
 
 include("cxxtypes.jl")
@@ -190,7 +190,7 @@ import .CxxCore: cast,
        addHeaderDir, defineMacro, cxxinclude, cxxparse, new_clang_instance,
        C_User, C_System, C_ExternCSystem
 export cast,
-       @cxx_str, @icxx_str, @cxxt_str, @pcpp_str, 
+       @cxx_str, @icxx_str, @cxxt_str, @pcpp_str,
        addHeaderDir, defineMacro, cxxinclude, cxxparse, new_clang_instance,
        C_User, C_System, C_ExternCSystem
 

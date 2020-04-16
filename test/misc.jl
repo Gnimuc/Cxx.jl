@@ -54,36 +54,6 @@ void foo51() {}
 @test_throws ErrorException (@cxx foo51)
 @test isa((@cxx &foo51), CppFptr)
 
-# References to member functions (#55)
-cxx"""
-class foo55 {
-    foo55() {};
-public:
-    void bar() {};
-};
-"""
-@test isa((@cxx &foo55::bar), CppMFptr)
-
-cxx"""
-class bar55 {
-    bar55() {};
-public:
-    double bar(int) { return 0.0; };
-};
-"""
-@test isa((@cxx &bar55::bar), CppMFptr)
-
-# booleans as template arguments
-cxx"""
-template < bool T > class baz {
-    baz() {};
-public:
-    void bar() {};
-};
-"""
-
-@test isa((@cxx &baz{false}::bar), CppMFptr)
-
 # Includes relative to the source directory (#48)
 macro test48_str(x,args...)
     return length(args) > 0

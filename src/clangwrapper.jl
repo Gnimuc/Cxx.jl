@@ -237,15 +237,6 @@ function makeFunctionType(C,rt::QualType, args::Vector{QualType})
         C,rt,cptrarr(args),length(args)))
 end
 
-makeMemberFunctionType(C,FT::QualType, class::pcpp"clang::Type") =
-    QualType(ccall((:makeMemberFunctionType, libcxxffi),Ptr{Cvoid},(Ref{ClangCompiler},Ptr{Cvoid},Ptr{Cvoid}),C,FT,class))
-
-getMemberPointerClass(mptr::pcpp"clang::Type") =
-    pcpp"clang::Type"(ccall((:getMemberPointerClass, libcxxffi),Ptr{Cvoid},(Ptr{Cvoid},),mptr))
-
-getMemberPointerPointee(mptr::pcpp"clang::Type") =
-    QualType(ccall((:getMemberPointerPointee, libcxxffi),Ptr{Cvoid},(Ptr{Cvoid},),mptr))
-
 getReturnType(ft::pcpp"clang::FunctionProtoType") =
     QualType(ccall((:getFPTReturnType,libcxxffi),Ptr{Cvoid},(Ptr{Cvoid},),ft))
 getReturnType(FD::pcpp"clang::FunctionDecl") =
@@ -256,9 +247,6 @@ getNumParams(FD::pcpp"clang::FunctionDecl") =
     Int(ccall((:getFDNumParams,libcxxffi),Csize_t,(Ptr{Cvoid},),FD))
 getParam(ft::pcpp"clang::FunctionProtoType", idx) =
     QualType(ccall((:getFPTParam,libcxxffi),Ptr{Cvoid},(Ptr{Cvoid},Csize_t),ft,idx))
-
-getLLVMStructType(argts::Vector{pcpp"llvm::Type"}) =
-    pcpp"llvm::Type"(ccall((:getLLVMStructType,libcxxffi), Ptr{Cvoid}, (Ptr{Ptr{Cvoid}},Csize_t), cptrarr(argts), length(argts)))
 
 isIncompleteType(t::pcpp"clang::Type") = pcpp"clang::NamedDecl"(ccall((:isIncompleteType,libcxxffi),Ptr{Cvoid},(Ptr{Cvoid},),t))
 
@@ -373,7 +361,7 @@ end
 # Clang Type* Bootstrap
 
 for s in (:isVoidType,:isBooleanType,:isPointerType,:isReferenceType,
-    :isCharType, :isIntegerType, :isFunctionPointerType, :isMemberFunctionPointerType,
+    :isCharType, :isIntegerType, :isFunctionPointerType,
     :isFunctionType, :isFunctionProtoType, :isEnumeralType, :isFloatingType,
     :isElaboratedType, :isTemplateSpecializationType, :isDependentType,
     :isTemplateTypeParmType, :isArrayType)
@@ -438,10 +426,6 @@ getTargsSize(ctargs) = ccall((:getTargsSize,libcxxffi),Csize_t,(Ptr{Cvoid},),cta
 function getCallOperator(C, R::pcpp"clang::CXXRecordDecl")
     pcpp"clang::CXXMethodDecl"(ccall((:getCallOperator,libcxxffi),
         Ptr{Cvoid}, (Ref{ClangCompiler}, Ptr{Cvoid}), C, R))
-end
-
-function isLambda(R::pcpp"clang::CXXRecordDecl")
-    ccall((:isCxxDLambda,libcxxffi),Bool,(Ptr{Cvoid},),R)
 end
 
 function CreateReturnStmt(C, E)

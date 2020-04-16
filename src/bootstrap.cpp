@@ -2072,21 +2072,6 @@ JL_DLLEXPORT void *makeFunctionType(CxxInstance *Cxx, void *rt, void **argts, si
   return Cxx->CI->getASTContext().getFunctionType(T, llvm::ArrayRef<clang::QualType>(qargs, nargs), EPI).getAsOpaquePtr();
 }
 
-JL_DLLEXPORT void *makeMemberFunctionType(CxxInstance *Cxx, void *FT, clang::Type *cls)
-{
-  return Cxx->CI->getASTContext().getMemberPointerType(clang::QualType::getFromOpaquePtr(FT), cls).getAsOpaquePtr();
-}
-
-JL_DLLEXPORT void *getMemberPointerClass(clang::Type *mptr)
-{
-  return (void*)cast<clang::MemberPointerType>(mptr)->getClass();
-}
-
-JL_DLLEXPORT void *getMemberPointerPointee(clang::Type *mptr)
-{
-  return cast<clang::MemberPointerType>(mptr)->getPointeeType().getAsOpaquePtr();
-}
-
 JL_DLLEXPORT void *getFPTReturnType(clang::FunctionProtoType *fpt)
 {
   return fpt->getReturnType().getAsOpaquePtr();
@@ -2110,11 +2095,6 @@ JL_DLLEXPORT size_t getFDNumParams(clang::FunctionDecl *FD)
 JL_DLLEXPORT void *getFPTParam(clang::FunctionProtoType *fpt, size_t idx)
 {
   return fpt->getParamType(idx).getAsOpaquePtr();
-}
-
-JL_DLLEXPORT void *getLLVMStructType(llvm::Type **ts, size_t nts)
-{
-  return (void*)llvm::StructType::get(jl_LLVMContext,ArrayRef<llvm::Type*>(ts,nts));
 }
 
 JL_DLLEXPORT void MarkDeclarationsReferencedInExpr(CxxInstance *Cxx,clang::Expr *e)

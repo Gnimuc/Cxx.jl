@@ -36,7 +36,6 @@ stripmodifier(p::Union{Type{CppPtr{T,CVR}},
     Type{CppRef{T,CVR}}}) where {T,CVR} = p
 stripmodifier(p::Type{T}) where {T <: CppValue} = p
 stripmodifier(p::Type{T}) where {T<:CppEnum} = p
-stripmodifier(p::Type{CppMFptr{base,fptr}}) where {base,fptr} = p
 stripmodifier(p::CxxBuiltinTypes) = p
 stripmodifier(p::Type{T}) where {T<:Function} = p
 stripmodifier(p::Type{Ptr{T}}) where {T} = p
@@ -50,7 +49,6 @@ resolvemodifier(C,p::CxxBuiltinTypes, e::pcpp"clang::Expr") = e
 resolvemodifier(C,p::Type{Ptr{T}}, e::pcpp"clang::Expr") where {T} = e
 resolvemodifier(C,p::Type{T}, e::pcpp"clang::Expr") where {T<:Ref} = e
 resolvemodifier(C,p::Type{T}, e::pcpp"clang::Expr") where {T<:CppEnum} = e
-resolvemodifier(C,p::Type{CppMFptr{base,fptr}}, e::pcpp"clang::Expr") where {base,fptr} = e
 resolvemodifier(C,cppfunc::Type{CppFptr{f}}, e::pcpp"clang::Expr") where {f} = e
 resolvemodifier(C,p::Type{JLCppCast{T,JLT}}, e::pcpp"clang::Expr") where {T,JLT} = e
 resolvemodifier(C,p::Type{T}, e::pcpp"clang::Expr") where {T} = e
@@ -189,12 +187,6 @@ function createReturn(C,builder,f,argt,llvmargt,llvmrt,rett,rt,ret,state; argidx
                 ret = InsertValue(builder, undef, ret, 0)
             elseif rett <: CppRef || rett <: CppPtr || rett <: Ptr
                 ret = PtrToInt(builder, ret, llvmrt)
-            elseif rett <: CppMFptr
-                undef = getUndefValue(llvmrt)
-                i1 = InsertValue(builder,undef,CreateBitCast(builder,
-                        ExtractValue(C,ret,0),getStructElementType(llvmrt,0)),0)
-                ret = InsertValue(builder,i1,CreateBitCast(builder,
-                        ExtractValue(C,ret,1),getStructElementType(llvmrt,1)),1)
             elseif rett == Bool
                 ret = CreateZext(builder,ret,julia_to_llvm(rett))
             else
@@ -292,18 +284,6 @@ resolvemodifier_llvm(C, builder, t::Type{CppDeref{T}}, v::pcpp"llvm::Value") whe
     resolvemodifier_llvm(C,builder, T, ExtractValue(C,v,0))
 resolvemodifier_llvm(C, builder, t::Type{CppAddr{T}}, v::pcpp"llvm::Value") where {T} =
     resolvemodifier_llvm(C,builder, T, ExtractValue(C,v,0))
-
-
-# We need to cast from a named struct with two fields to an anonymous struct
-# with two fields. This isn't bitcastable, so we need to use to sets of insert
-# and extract instructions
-function resolvemodifier_llvm(C, builder,
-        t::Type{CppMFptr{base,fptr}}, v::pcpp"llvm::Value") where {base,fptr}
-    t = getLLVMStructType([julia_to_llvm(UInt64),julia_to_llvm(UInt64)])
-    undef = getUndefValue(t)
-    i1 = InsertValue(builder, undef, ExtractValue(C,v,0), 0)
-    return InsertValue(builder, i1, ExtractValue(C,v,1), 1)
-end
 
 function associateargs(C, builder,argt,args,pvds)
     for i = 1:length(args)

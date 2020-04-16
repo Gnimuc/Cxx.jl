@@ -180,10 +180,7 @@ end
 function cpptype(C,p::Type{CxxQualType{T,CVR}}) where {T,CVR}
     addQualifiers(typeForDecl(cppdecl(C,T)),CVR)
 end
-# This is a hack, we should find a better way to do this
-function cpptype(C,p::Type{CxxQualType{T,CVR}}) where {T<:CppLambda,CVR}
-    addQualifiers(typeForLambda(T),CVR)
-end
+
 cpptype(C,p::Type{CppValue{T,N}}) where {T,N} = cpptype(C,T)
 cpptype(C,p::Type{CppValue{T}}) where {T} = cpptype(C,T)
 cpptype(C,p::Type{CppBaseType{s}}) where {s} = QualType(typeForDecl(cppdecl(C,p)))
@@ -194,9 +191,6 @@ end
 cpptype(C,::Type{T}) where {T<:Ref} = referenceTo(C,cpptype(C,eltype(T)))
 cpptype(C,p::Type{Ptr{T}}) where {T} = pointerTo(C,cpptype(C,T))
 
-function cpptype(C,p::Type{CppMFptr{base,fptr}}) where {base,fptr}
-    makeMemberFunctionType(C, cpptype(C,base), cpptype(C,fptr))
-end
 function cpptype(C,p::Type{CppFunc{rt,args}}) where {rt, args}
     makeFunctionType(C, cpptype(C,rt),QualType[cpptype(C,arg) for arg in args.parameters])
 end
@@ -340,7 +334,7 @@ canonicalType(t::pcpp"clang::Type") = pcpp"clang::Type"(ccall((:canonicalType,li
 
 function isCxxEquivalentType(t)
     (t <: CppPtr) || (t <: CppRef) || (t <: CppValue) || (t <: CppCast) ||
-        (t <: CppFptr) || (t <: CppMFptr) || (t <: CppEnum) ||
+        (t <: CppFptr)  || (t <: CppEnum) ||
         (t <: CppDeref) || (t <: CppAddr) || (t <: Ptr) ||
         (t <: Ref) || (t <: JLCppCast)
 end
@@ -394,11 +388,6 @@ function juliatype(t::QualType, quoted = false, typeargs = Dict{Int,Cvoid}();
         else
             error("Function has no proto type")
         end
-    elseif isMemberFunctionPointerType(t)
-        @assert !quoted
-        cxxd = QualType(getMemberPointerClass(t))
-        pointee = getMemberPointerPointee(t)
-        return CppMFptr{juliatype(cxxd,quoted,typeargs),juliatype(pointee,quoted,typeargs)}
     elseif isReferenceType(t)
         t = getPointeeType(t)
         pointeeT = juliatype(t,quoted,typeargs; wrapvalue = false, valuecvr = false)
@@ -460,12 +449,8 @@ function juliatype(t::QualType, quoted = false, typeargs = Dict{Int,Cvoid}();
     # prune
     else
         cxxd = getAsCXXRecordDecl(t)
-        if cxxd != C_NULL && isLambda(cxxd)
-            if haskey(InverseMappedTypes, QualType(t))
-                T = InverseMappedTypes[QualType(t)]
-            else
-                T = lambdaForType(QualType(t))
-            end
+        if cxxd != C_NULL
+            error("prune!")
         else
             T = toBaseType(t)
         end

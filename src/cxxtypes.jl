@@ -131,7 +131,7 @@ Base.unsafe_load(p::CppRef{T}) where {T<:CppPtr} = unsafe_load(reinterpret(Ptr{T
 
 """
     struct CppFunc{rt,argt}
-Provides a common type for [`CppFptr`](@ref) and [`CppMFptr`](@ref).
+Provides a common type for [`CppFptr`](@ref).
 """
 struct CppFunc{rt,argt} end
 
@@ -141,16 +141,6 @@ The equivalent of a C++ `rt (*foo)(argt...)`.
 """
 struct CppFptr{func}
     ptr::Ptr{Cvoid}
-end
-
-"""
-    struct CppMFptr{base,fptr}
-A pointer to a C++ member function.
-Refer to the Itanium ABI for its meaning: https://itanium-cxx-abi.github.io/cxx-abi/abi.html#member-pointers
-"""
-struct CppMFptr{base,fptr}
-    ptr::Cptrdiff_t
-    adj::Cptrdiff_t
 end
 
 """
@@ -166,26 +156,6 @@ Base.:(==)(p1::CppEnum, p2::Integer) = p1.val == p2
 Base.:(==)(p1::Integer, p2::CppEnum) = p1 == p2.val
 
 Base.unsafe_load(p::CppRef{T}) where {T<:CppEnum} = unsafe_load(reinterpret(Ptr{Cint}, p))
-
-"""
-    struct CppLambda{num}
-Representa a C++ Lambda. Since they are not nameable, we need to number them
-and record the corresponding type.
-"""
-struct CppLambda{num}
-    captureData::Ptr{Cvoid}
-end
-
-const LAMBDA_TYPES = Vector{QualType}()
-const LAMBDA_INDICES = Dict{QualType,Int}()
-function lambdaForType(T)
-    if !haskey(LAMBDA_INDICES, T)
-        push!(LAMBDA_TYPES,T)
-        LAMBDA_INDICES[T] = length(LAMBDA_TYPES)
-    end
-    CppLambda{LAMBDA_INDICES[T]}
-end
-typeForLambda(::Type{CppLambda{N}}) where {N} = LAMBDA_TYPES[N]
 
 # Convenience string literals for the above - part of the user facing
 # functionality. Due to the complexity of the representation hierarchy,

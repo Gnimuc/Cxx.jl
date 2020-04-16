@@ -130,11 +130,6 @@ function PtrToInt(builder, from::pcpp"llvm::Value", to::pcpp"llvm::Type")
         (Ptr{Cvoid},Ptr{Cvoid},Ptr{Cvoid}), builder, from, to))
 end
 
-
-getTemplateArgs(tmplt::pcpp"clang::ClassTemplateSpecializationDecl") =
-    rcpp"clang::TemplateArgumentList"(ccall((:getTemplateArgs,libcxxffi),Ptr{Cvoid},(Ptr{Cvoid},),tmplt))
-getTemplateArgs(tmplt::pcpp"clang::TemplateSpecializationType") = tmplt
-
 getTargsSize(targs::rcpp"clang::TemplateArgumentList") =
  ccall((:getTargsSize,libcxxffi),Csize_t,(Ptr{Cvoid},),targs)
 
@@ -153,20 +148,8 @@ getTargTypeAtIdx(targs::Union{rcpp"clang::TemplateArgumentList",
 getTargTypeAtIdx(targs::pcpp"clang::TemplateSpecializationType", i) =
     QualType(ccall((:getTSTTargTypeAtIdx,libcxxffi),Ptr{Cvoid},(Ptr{Cvoid},Csize_t),targs,i))
 
-getTargKindAtIdx(targs::pcpp"clang::TemplateSpecializationType", i) =
-    ccall((:getTSTTargKindAtIdx,libcxxffi), Cint, (Ptr{Cvoid},Csize_t), targs, i)
-
-getTargKindAtIdx(targs, i) =
-    ccall((:getTargKindAtIdx,libcxxffi), Cint, (Ptr{Cvoid}, Csize_t), targs, i)
-
 getTargKind(targ) =
     ccall((:getTargKind,libcxxffi),Cint,(Ptr{Cvoid},),targ)
-
-getTargAsIntegralAtIdx(targs::rcpp"clang::TemplateArgumentList", i) =
-    ccall((:getTargAsIntegralAtIdx,libcxxffi),Int64,(Ptr{Cvoid},Csize_t),targs,i)
-
-getTargIntegralTypeAtIdx(targs, i) =
-    QualType(ccall((:getTargIntegralTypeAtIdx,libcxxffi),Ptr{Cvoid},(Ptr{Cvoid},Csize_t),targs,i))
 
 getTargPackAtIdxSize(targs, i) =
     ccall((:getTargPackAtIdxSize, libcxxffi), Csize_t, (Ptr{Cvoid}, Csize_t), targs, i)
@@ -505,15 +488,10 @@ SetDeclUsed(C,FD) = ccall((:SetDeclUsed, libcxxffi),Cvoid,(Ref{ClangCompiler},Pt
 hasTrivialDestructor(C, D::pcpp"clang::CXXRecordDecl") =
   ccall((:hasTrivialDestructor, libcxxffi), Bool, (Ref{ClangCompiler}, Ptr{Cvoid},), C, D)
 
-setPersonality(F::pcpp"llvm::Function", PersonalityF::pcpp"llvm::Function") =
-    ccall((:setPersonality, libcxxffi), Cvoid, (Ptr{Cvoid}, Ptr{Cvoid}), F, PersonalityF)
-
 getFunction(C, name) =
     pcpp"llvm::Function"(ccall((:getFunction, libcxxffi), Ptr{Cvoid}, (Ref{ClangCompiler}, Ptr{UInt8}, Csize_t), C, name, endof(name)))
 
 getTypeName(C, T) = ccall((:getTypeName, libcxxffi), Any, (Ref{ClangCompiler}, Ptr{Cvoid}), C, T)
-
-GetAddrOfFunction(C, FD) = pcpp"llvm::Constant"(ccall((:GetAddrOfFunction,libcxxffi),Ptr{Cvoid},(Ref{ClangCompiler},Ptr{Cvoid}),C,FD))
 
 CreateIntegerLiteral(C, val::UInt64, T) =
     pcpp"clang::IntegerLiteral"(ccall((:CreateIntegerLiteral, libcxxffi), Ptr{Cvoid}, (Ref{ClangCompiler}, UInt64, Ptr{Cvoid}), C, val, T))
@@ -523,17 +501,12 @@ ExitParserScope(C) = ccall((:ExitParserScope,libcxxffi),Cvoid,(Ref{ClangCompiler
 ActOnTypeParameterParserScope(C, Name, pos) =
     pcpp"clang::Decl"(ccall((:ActOnTypeParameterParserScope,libcxxffi),Ptr{Cvoid},(Ref{ClangCompiler},Ptr{UInt8},Cint),C,Name,pos))
 
-getUnderlyingTemplateDecl(TST) =
-    pcpp"clang::TemplateDecl"(ccall((:getUnderlyingTemplateDecl,libcxxffi),Ptr{Cvoid},(Ptr{Cvoid},),TST))
-
 desugar(T::pcpp"clang::ElaboratedType") = QualType(ccall((:desugarElaboratedType,libcxxffi),Ptr{Cvoid},(Ptr{Cvoid},),T))
 function desugar(T::QualType)
     T′ = extractTypePtr(T)
     @assert isElaboratedType(T′)
     QualType(ccall((:desugarElaboratedType,libcxxffi),Ptr{Cvoid},(Ptr{Cvoid},),T′))
 end
-
-getTTPTIndex(T::pcpp"clang::TemplateTypeParmType") = ccall((:getTTPTIndex, libcxxffi), Cuint, (Ptr{Cvoid},), T)
 
 getTemplatedDecl(T::pcpp"clang::TemplateDecl") = pcpp"clang::NamedDecl"(ccall((:getTemplatedDecl, libcxxffi), Ptr{Cvoid}, (Ptr{Cvoid},), T))
 

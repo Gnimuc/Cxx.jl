@@ -153,7 +153,7 @@ using Base.Sys: isapple, isbsd, islinux, isunix, iswindows
 
 # These are re-exported from Cxx
 export cast,
-       @cxx_str, @cxx_mstr, @icxx_str, @icxx_mstr, @cxxt_str, @jpcpp_str,
+       @cxx_str, @cxx_mstr, @icxx_str, @icxx_mstr, @cxxt_str,
        addHeaderDir, defineMacro, cxxinclude, cxxparse, new_clang_instance,
        C_User, C_System, C_ExternCSystem
 
@@ -186,13 +186,11 @@ export __current_compiler__
 
 # Re-export these
 import .CxxCore: cast,
-       @cxx_str, @icxx_str, @cxxt_str,
-       @cxx, @cxxnew, @pcpp_str, @jpcpp_str, @exception, @cxxm,
+       @cxx_str, @icxx_str, @cxxt_str, @pcpp_str,
        addHeaderDir, defineMacro, cxxinclude, cxxparse, new_clang_instance,
        C_User, C_System, C_ExternCSystem
 export cast,
-       @cxx_str, @icxx_str, @cxxt_str,
-       @cxx, @cxxnew, @pcpp_str, @jpcpp_str, @exception, @cxxm,
+       @cxx_str, @icxx_str, @cxxt_str, @pcpp_str, 
        addHeaderDir, defineMacro, cxxinclude, cxxparse, new_clang_instance,
        C_User, C_System, C_ExternCSystem
 

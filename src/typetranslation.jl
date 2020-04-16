@@ -400,53 +400,11 @@ const KindTemplateExpansion = 6
 const KindExpression        = 7
 const KindPack              = 8
 
-function getTemplateParameters(cxxd,quoted = false,typeargs = Dict{Int64,Cvoid}())
-    targt = Tuple{}
-    if isa(cxxd, pcpp"clang::TemplateSpecializationType")
-        tmplt = cxxd
-    elseif isaClassTemplateSpecializationDecl(pcpp"clang::Decl"(convert(Ptr{Cvoid},cxxd)))
-        tmplt = dcastClassTemplateSpecializationDecl(pcpp"clang::Decl"(convert(Ptr{Cvoid},cxxd)))
-    elseif isa(cxxd, pcpp"clang::CXXRecordDecl")
-        return Tuple{}
-    else
-        tmplt = cxxd
-    end
-    targs = getTemplateArgs(tmplt)
-    args = Any[]
-    for i = 0:(getTargsSize(targs)-1)
-        kind = getTargKindAtIdx(targs,i)
-        if kind == KindType
-            T = juliatype(getTargTypeAtIdx(targs,i),quoted,typeargs; wrapvalue = false)
-            push!(args,T)
-        elseif kind == KindIntegral
-            val = getTargAsIntegralAtIdx(targs,i)
-            t = getTargIntegralTypeAtIdx(targs,i)
-            push!(args,Val{reinterpret(juliatype(t,quoted,typeargs),[val])[1]})
-        else
-            error("Unhandled template argument kind ($kind)")
-        end
-    end
-    return quoted ? Expr(:curly,:Tuple,args...) : Tuple{args...}
-end
-
 include(joinpath(@__DIR__, "..", "deps", "usr", "clang_constants.jl"))
 
 getPointeeType(t::pcpp"clang::Type") = QualType(ccall((:getPointeeType,libcxxffi),Ptr{Cvoid},(Ptr{Cvoid},),t))
 getPointeeType(t::QualType) = getPointeeType(extractTypePtr(t))
 canonicalType(t::pcpp"clang::Type") = pcpp"clang::Type"(ccall((:canonicalType,libcxxffi),Ptr{Cvoid},(Ptr{Cvoid},),t))
-
-function toBaseType(t::pcpp"clang::Type")
-    T = CppBaseType{Symbol(get_name(t))}
-    rd = getAsCXXRecordDecl(t)
-    if rd != C_NULL
-        targs = getTemplateParameters(rd)
-        @assert isa(targs, Type)
-        if targs != Tuple{}
-            T = CppTemplate{T,targs}
-        end
-    end
-    T
-end
 
 function isCxxEquivalentType(t)
     (t <: CppPtr) || (t <: CppRef) || (t <: CppValue) || (t <: CppCast) ||
@@ -564,35 +522,35 @@ function juliatype(t::QualType, quoted = false, typeargs = Dict{Int,Cvoid}();
     # If this is not dependent, the generic logic handles it fine
     elseif isElaboratedType(t) && isDependentType(t)
         return juliatype(desugar(pcpp"clang::ElaboratedType"(convert(Ptr{Cvoid},t))), quoted, typeargs)
-    elseif isTemplateTypeParmType(t)
-        t = pcpp"clang::TemplateTypeParmType"(convert(Ptr{Cvoid},t))
-        idx = getTTPTIndex(t)
-        if !haskey(typeargs, idx)
-            error("No translation for typearg")
-        end
-        return typeargs[idx]
-    elseif isTemplateSpecializationType(t) && isDependentType(t)
-        t = pcpp"clang::TemplateSpecializationType"(convert(Ptr{Cvoid},t))
-        TD = getUnderlyingTemplateDecl(t)
-        TDargs = getTemplateParameters(t,quoted,typeargs)
-        T = CppBaseType{Symbol(get_name(TD))}
-        if quoted
-            exprT = :(CppTemplate{$T,$TDargs})
-            valuecvr && (exprT = :(CxxQualType{$exprT,$CVR}))
-            wrapvalue && (exprT = :(CppValue{$exprT}))
-            return exprT
-        else
-            r = length(TDargs.parameters):(getNumParameters(TD)-1)
-            @assert isempty(r)
-            T = CppTemplate{T,Tuple{TDargs.parameters...}}
-            if valuecvr
-                T = CxxQualType{T,CVR}
-            end
-            if wrapvalue
-                T = CppValue{T}
-            end
-            return T
-        end
+    # elseif isTemplateTypeParmType(t)
+    #     t = pcpp"clang::TemplateTypeParmType"(convert(Ptr{Cvoid},t))
+    #     idx = getTTPTIndex(t)
+    #     if !haskey(typeargs, idx)
+    #         error("No translation for typearg")
+    #     end
+    #     return typeargs[idx]
+    # elseif isTemplateSpecializationType(t) && isDependentType(t)
+    #     t = pcpp"clang::TemplateSpecializationType"(convert(Ptr{Cvoid},t))
+    #     TD = getUnderlyingTemplateDecl(t)
+    #     TDargs = getTemplateParameters(t,quoted,typeargs)
+    #     T = CppBaseType{Symbol(get_name(TD))}
+    #     if quoted
+    #         exprT = :(CppTemplate{$T,$TDargs})
+    #         valuecvr && (exprT = :(CxxQualType{$exprT,$CVR}))
+    #         wrapvalue && (exprT = :(CppValue{$exprT}))
+    #         return exprT
+    #     else
+    #         r = length(TDargs.parameters):(getNumParameters(TD)-1)
+    #         @assert isempty(r)
+    #         T = CppTemplate{T,Tuple{TDargs.parameters...}}
+    #         if valuecvr
+    #             T = CxxQualType{T,CVR}
+    #         end
+    #         if wrapvalue
+    #             T = CppValue{T}
+    #         end
+    #         return T
+    #     end
     else
         cxxd = getAsCXXRecordDecl(t)
         if cxxd != C_NULL && isLambda(cxxd)

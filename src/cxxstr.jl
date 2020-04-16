@@ -562,24 +562,7 @@ function build_icxx_expr(id, exprs, isexprs, icxxs, compiler, impl_func = cxxstr
     setup = Expr(:block)
     cxxstr = Expr(:call,impl_func,compiler,:($(SourceBuf){$id}()))
     for (i,e) in enumerate(exprs)
-        #=if isexprs[i]
-            s = gensym()
-            if isa(e,QuoteNode)
-                e = e.value
-            elseif isexpr(e,:quote)
-                e = e.args[1]
-            else
-                error("Unrecognized expression type for quote in icxx")
-            end
-            largs = Expr(:tuple)
-            if !isempty(icxxs[i])
-                largs.args = [ s for (s,_,ixexprs) in icxxs[i]]
-            end
-            push!(setup.args,Expr(:(=),s,Expr(:->,largs,e)))
-            push!(cxxstr.args,s)
-        else=#
-            push!(cxxstr.args,:($(cppconvert)($e)))
-        #end
+        push!(cxxstr.args,:($(cppconvert)($e)))
     end
     push!(setup.args,cxxstr)
     return setup

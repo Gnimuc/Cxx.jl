@@ -134,7 +134,7 @@ function EmitExpr(C,ce,nE,ctce, argt, pvds, rett = Cvoid; kwargs...)
 
     llvmrt = julia_to_llvm(rett)
     # Let's create an LLVM function
-    f = CreateFunctionWithPersonality(C, issret ? julia_to_llvm(Cvoid) : llvmrt,
+    f = CreateFunction(C, issret ? julia_to_llvm(Cvoid) : llvmrt,
         map(julia_to_llvm,llvmargt))
 
     # Clang's code emitter needs some extra information about the function, so let's
@@ -167,17 +167,6 @@ function EmitExpr(C,ce,nE,ctce, argt, pvds, rett = Cvoid; kwargs...)
     # Common return path for everything that's calling a normal function
     # (i.e. everything but constructors)
     createReturn(C,builder,f,argt,llvmargt,llvmrt,rett,rt,ret,state; kwargs...)
-end
-
-function CreateFunctionWithPersonality(C, args...)
-    f = CreateFunction(C, args...)
-    if !isCCompiler(C)
-        PersonalityF = pcpp"llvm::Function"(convert(Ptr{Cvoid},GetAddrOfFunction(C,
-            lookup_name(C,["__cxxjl_personality_v0"]))))
-        @assert PersonalityF != C_NULL
-        setPersonality(f, PersonalityF)
-    end
-    f
 end
 
 function createReturn(C,builder,f,argt,llvmargt,llvmrt,rett,rt,ret,state; argidxs = [1:length(argt);], symargs = nothing)

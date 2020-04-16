@@ -505,11 +505,6 @@ JL_DLLEXPORT void SetDeclInitializer(CxxInstance *Cxx, clang::VarDecl *D, llvm::
     GV->setConstant(true);
 }
 
-JL_DLLEXPORT void *GetAddrOfFunction(CxxInstance *Cxx, clang::FunctionDecl *D)
-{
-  return (void*)Cxx->CGM->GetAddrOfFunction(D);
-}
-
 size_t cxxsizeofType(CxxInstance *Cxx, void *t);
 typedef struct cppcall_state {
     // Save previous globals
@@ -1762,11 +1757,6 @@ JL_DLLEXPORT void *BuildDecltypeType(CxxInstance *Cxx, clang::Expr *E)
     return Cxx->CI->getASTContext().getCanonicalType(T).getAsOpaquePtr();
 }
 
-JL_DLLEXPORT void *getTemplateArgs(clang::ClassTemplateSpecializationDecl *tmplt)
-{
-    return (void*)&tmplt->getTemplateArgs();
-}
-
 JL_DLLEXPORT size_t getTargsSize(clang::TemplateArgumentList *targs)
 {
     return targs->size();
@@ -1802,19 +1792,9 @@ JL_DLLEXPORT void *getTargIntegralType(const clang::TemplateArgument *targ)
     return targ->getIntegralType().getAsOpaquePtr();
 }
 
-JL_DLLEXPORT void *getTargIntegralTypeAtIdx(clang::TemplateArgumentList *targs, size_t i)
-{
-    return getTargIntegralType(&targs->get(i));
-}
-
 JL_DLLEXPORT int getTargKind(const clang::TemplateArgument *targ)
 {
     return targ->getKind();
-}
-
-JL_DLLEXPORT int getTargKindAtIdx(clang::TemplateArgumentList *targs, size_t i)
-{
-    return getTargKind(&targs->get(i));
 }
 
 JL_DLLEXPORT int getTSTTargKindAtIdx(clang::TemplateSpecializationType *TST, size_t i)
@@ -1830,11 +1810,6 @@ JL_DLLEXPORT size_t getTargPackAtIdxSize(clang::TemplateArgumentList *targs, siz
 JL_DLLEXPORT void *getTargPackAtIdxTargAtIdx(clang::TemplateArgumentList *targs, size_t i, size_t j)
 {
     return (void*)&targs->get(i).getPackAsArray()[j];
-}
-
-JL_DLLEXPORT int64_t getTargAsIntegralAtIdx(clang::TemplateArgumentList *targs, size_t i)
-{
-    return targs->get(i).getAsIntegral().getSExtValue();
 }
 
 void *getTargPackBegin(clang::TemplateArgument *targ)
@@ -2469,19 +2444,9 @@ JL_DLLEXPORT bool hasTrivialDestructor(CxxInstance *Cxx, clang::CXXRecordDecl *R
   return RD->hasTrivialDestructor();
 }
 
-JL_DLLEXPORT void setPersonality(llvm::Function *F, llvm::Function *PersonalityF)
-{
-  F->setPersonalityFn(PersonalityF);
-}
-
 JL_DLLEXPORT void *getFunction(CxxInstance *Cxx, char *name, size_t length)
 {
   return Cxx->shadow->getFunction(llvm::StringRef(name,length));
-}
-
-JL_DLLEXPORT void *getUnderlyingTemplateDecl(clang::TemplateSpecializationType *TST)
-{
-  return (void*)TST->getTemplateName().getAsTemplateDecl();
 }
 
 JL_DLLEXPORT void *CreateIntegerLiteral(CxxInstance *Cxx, uint64_t val, void *T)
@@ -2494,11 +2459,6 @@ JL_DLLEXPORT void *CreateIntegerLiteral(CxxInstance *Cxx, uint64_t val, void *T)
 JL_DLLEXPORT void *desugarElaboratedType(clang::ElaboratedType *T)
 {
   return (void *)T->desugar().getAsOpaquePtr();
-}
-
-JL_DLLEXPORT unsigned getTTPTIndex(clang::TemplateTypeParmType *TTPT)
-{
-  return TTPT->getIndex();
 }
 
 JL_DLLEXPORT void *getTemplatedDecl(clang::TemplateDecl *TD)
@@ -2555,18 +2515,5 @@ JL_DLLEXPORT void *getTypeName(CxxInstance *Cxx, void *Ty)
 
 // Exception handling
 extern void jl_error(const char *str);
-
-#include "unwind.h"
-void __attribute__((noreturn)) (*process_cxx_exception)(uint64_t exceptionClass, _Unwind_Exception* unwind_exception);
-_Unwind_Reason_Code __cxxjl_personality_v0
-                    (int version, _Unwind_Action actions, uint64_t exceptionClass,
-                     _Unwind_Exception* unwind_exception, _Unwind_Context* context)
-{
-  // Catch all exceptions
-  if (actions & _UA_SEARCH_PHASE)
-    return _URC_HANDLER_FOUND;
-
-  (*process_cxx_exception)(exceptionClass,unwind_exception);
-}
 
 } // extern "C"

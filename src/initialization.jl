@@ -5,18 +5,10 @@
 
 using Libdl
 
-# Paths
-binpath = BASE_JULIA_BIN
-srcpath = BASE_JULIA_SRC
-depspath = joinpath(BASE_JULIA_SRC, "deps", "srccache")
-
 # Load the Cxx.jl bootstrap library (in debug version if we're running the Julia debug version)
 lib_suffix = ccall(:jl_is_debugbuild, Cint, ()) != 0 ? "-debug" : ""
-@static if Sys.iswindows()
-    const libcxxffi = joinpath(@__DIR__, "..", "deps", "usr", "bin", "libcxxffi"*lib_suffix)
-else
-    const libcxxffi = joinpath(@__DIR__, "..", "deps", "usr", "lib", "libcxxffi"*lib_suffix)
-end
+const libcxxffi = joinpath(@__DIR__, "..", "deps", "usr", "lib", "libcxxffi"*lib_suffix)
+
 # Set up Clang's global data structures
 function init_libcxxffi()
     # Force libcxxffi to be opened with RTLD_GLOBAL
@@ -318,15 +310,6 @@ end
     push!(headers,("/usr/include", C_System));
 end # function addStdHeaders(C)
 end # islinux
-
-@static if iswindows() function collectStdHeaders!(headers)
-    base = joinpath(@__DIR__, "..", "deps", "usr")
-    push!(headers,(joinpath(base, "mingw", "include"), C_System))
-    push!(headers,(joinpath(base, "mingw", "include", "c++", "7.1.0"), C_System))
-    push!(headers,(joinpath(base, "mingw", "include", "c++", "7.1.0", "x86_64-w64-mingw32"), C_System))
-    push!(headers,(joinpath(base, "mingw", "sys-root", "include"), C_System)) # not sure whether this is necessary
-end #function addStdHeaders(C)
-end # iswindows
 
 # Also add clang's intrinsic headers
 function collectClangHeaders!(headers)

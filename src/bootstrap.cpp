@@ -395,45 +395,6 @@ JL_DLLEXPORT void *lookup_name(CxxInstance *Cxx, char *name, clang::DeclContext 
     return R.empty() ? NULL : R.getRepresentativeDecl();
 }
 
-JL_DLLEXPORT void *SpecializeClass(CxxInstance *Cxx, clang::ClassTemplateDecl *tmplt, void **types, uint64_t *integralValues,int8_t *integralValuePresent, size_t nargs)
-{
-  clang::TemplateArgument *targs = new clang::TemplateArgument[nargs];
-  for (size_t i = 0; i < nargs; ++i) {
-    if (integralValuePresent[i] == 1) {
-      clang::QualType IntT = clang::QualType::getFromOpaquePtr(types[i]);
-      size_t BitWidth = Cxx->CI->getASTContext().getTypeSize(IntT);
-      llvm::APSInt Value(llvm::APInt(64,integralValues[i]));
-      if (Value.getBitWidth() != BitWidth)
-        Value = Value.extOrTrunc(BitWidth);
-      Value.setIsSigned(IntT->isSignedIntegerOrEnumerationType());
-      targs[i] = clang::TemplateArgument(Cxx->CI->getASTContext(),Value,IntT);
-    } else {
-      targs[i] = clang::TemplateArgument(clang::QualType::getFromOpaquePtr(types[i]));
-    }
-    targs[i] = Cxx->CI->getASTContext().getCanonicalTemplateArgument(targs[i]);
-  }
-  void *InsertPos;
-  clang::ClassTemplateSpecializationDecl *ret =
-    tmplt->findSpecialization(ArrayRef<clang::TemplateArgument>(targs,nargs),
-    InsertPos);
-  if (!ret)
-  {
-    ret = clang::ClassTemplateSpecializationDecl::Create(Cxx->CI->getASTContext(),
-                            tmplt->getTemplatedDecl()->getTagKind(),
-                            tmplt->getDeclContext(),
-                            tmplt->getTemplatedDecl()->getBeginLoc(),
-                            tmplt->getLocation(),
-                            tmplt,
-                            ArrayRef<clang::TemplateArgument>{targs,nargs},
-                            nullptr);
-    tmplt->AddSpecialization(ret, InsertPos);
-    if (tmplt->isOutOfLine())
-      ret->setLexicalDeclContext(tmplt->getLexicalDeclContext());
-  }
-  delete[] targs;
-  return ret;
-}
-
 JL_DLLEXPORT void *typeForDecl(clang::Decl *D)
 {
     clang::TypeDecl *ty = dyn_cast<clang::TypeDecl>(D);
@@ -1765,11 +1726,6 @@ JL_DLLEXPORT size_t getTargsSize(clang::TemplateArgumentList *targs)
 JL_DLLEXPORT size_t getTSTTargsSize(clang::TemplateSpecializationType *TST)
 {
     return TST->getNumArgs();
-}
-
-JL_DLLEXPORT size_t getTDNumParameters(clang::TemplateDecl *TD)
-{
-    return TD->getTemplateParameters()->size();
 }
 
 JL_DLLEXPORT void *getTargType(const clang::TemplateArgument *targ)

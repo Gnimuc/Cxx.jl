@@ -122,62 +122,6 @@ function lookup_ctx(C, fname::AbstractString;
 end
 lookup_ctx(C, fname::Symbol; kwargs...) = lookup_ctx(C, string(fname); kwargs...)
 
-# # Template instantiations for decl lookups
-
-# Specialize a ClassTemplateDecl cxxt with a list of template arguments given
-# by `targs`
-function specialize_template(C,cxxt::pcpp"clang::ClassTemplateDecl",targs)
-    @assert cxxt != C_NULL
-    nparams = length(targs.parameters)
-    integralValues = zeros(UInt64,nparams)
-    integralValuesPresent = zeros(UInt8,nparams)
-    bitwidths = zeros(UInt32,nparams)
-    ts = Vector{QualType}(undef, nparams)
-    for (i,t) in enumerate(targs.parameters)
-        (t <: Val) && (t = t.parameters[1])
-        if isa(t,Type)
-            ts[i] = cpptype(C,t)
-        elseif isa(t,Integer) || isa(t,CppEnum)
-            ts[i] = cpptype(C,typeof(t))
-            integralValues[i] = unsigned(isa(t,CppEnum) ? t.val : t)
-            integralValuesPresent[i] = 1
-            bitwidths[i] = isa(t,Bool) ? 8 : sizeof(typeof(t))
-        else
-            error("Unhandled template parameter type ($t)")
-        end
-    end
-    d = pcpp"clang::ClassTemplateSpecializationDecl"(ccall((:SpecializeClass,libcxxffi),Ptr{Cvoid},
-            (Ref{ClangCompiler},Ptr{Cvoid},Ptr{Ptr{Cvoid}},Ptr{UInt64},Ptr{Int8},Csize_t),
-            C,convert(Ptr{Cvoid},cxxt),[convert(Ptr{Cvoid},p) for p in ts],
-            integralValues,integralValuesPresent,length(ts)))
-    d
-end
-
-function specialize_template_clang(C,cxxt::pcpp"clang::ClassTemplateDecl",targs)
-    @assert cxxt != C_NULL
-    integralValues = zeros(UInt64,length(targs))
-    integralValuesPresent = zeros(UInt8,length(targs))
-    bitwidths = zeros(UInt32,length(targs))
-    ts = Vector{QualType}(undef, length(targs))
-    for (i,t) in enumerate(targs)
-        if isa(t,pcpp"clang::Type") || isa(t,QualType)
-            ts[i] = QualType(t)
-        elseif isa(t,Integer) || isa(t,CppEnum)
-            ts[i] = cpptype(C, typeof(t))
-            integralValues[i] = unsigned(isa(t,CppEnum) ? t.val : t)
-            integralValuesPresent[i] = 1
-            bitwidths[i] = isa(t,Bool) ? 8 : sizeof(typeof(t))
-        else
-            error("Unhandled template parameter type ($t)")
-        end
-    end
-    d = pcpp"clang::ClassTemplateSpecializationDecl"(ccall((:SpecializeClass,libcxxffi),Ptr{Cvoid},
-            (Ref{ClangCompiler},Ptr{Cvoid},Ptr{Cvoid},Ptr{UInt64},Ptr{Int8},Csize_t),C,
-            convert(Ptr{Cvoid},cxxt),[convert(Ptr{Cvoid},p) for p in ts],
-            integralValues,integralValuesPresent,length(ts)))
-    d
-end
-
 # # The actual decl lookup
 # since we split out all the actual meat above, this is now simple
 
@@ -186,18 +130,6 @@ function cppdecl(C,T::Type{CppBaseType{fname}}) where fname
     lookup_ctx(C,fname)
 end
 cppdecl(C,p::Type{T}) where {T<:CppEnum} = lookup_ctx(C,p.parameters[1])
-
-function cppdecl(C,TT::Type{CppTemplate{T,targs}}) where {T,targs}
-    ctx = cppdecl(C,T)
-
-    # Do the acutal template resolution
-    cxxt = cxxtmplt(ctx)
-    @assert cxxt != C_NULL
-    deduced_class = specialize_template(C,cxxt,targs)
-    ctx = deduced_class
-
-    ctx
-end
 
 # For getting the decl ignore the CVR qualifiers, pointer qualification, etc.
 # and just do the lookup on the base decl
@@ -523,34 +455,9 @@ function juliatype(t::QualType, quoted = false, typeargs = Dict{Int,Cvoid}();
     elseif isElaboratedType(t) && isDependentType(t)
         return juliatype(desugar(pcpp"clang::ElaboratedType"(convert(Ptr{Cvoid},t))), quoted, typeargs)
     # elseif isTemplateTypeParmType(t)
-    #     t = pcpp"clang::TemplateTypeParmType"(convert(Ptr{Cvoid},t))
-    #     idx = getTTPTIndex(t)
-    #     if !haskey(typeargs, idx)
-    #         error("No translation for typearg")
-    #     end
-    #     return typeargs[idx]
+    # prune
     # elseif isTemplateSpecializationType(t) && isDependentType(t)
-    #     t = pcpp"clang::TemplateSpecializationType"(convert(Ptr{Cvoid},t))
-    #     TD = getUnderlyingTemplateDecl(t)
-    #     TDargs = getTemplateParameters(t,quoted,typeargs)
-    #     T = CppBaseType{Symbol(get_name(TD))}
-    #     if quoted
-    #         exprT = :(CppTemplate{$T,$TDargs})
-    #         valuecvr && (exprT = :(CxxQualType{$exprT,$CVR}))
-    #         wrapvalue && (exprT = :(CppValue{$exprT}))
-    #         return exprT
-    #     else
-    #         r = length(TDargs.parameters):(getNumParameters(TD)-1)
-    #         @assert isempty(r)
-    #         T = CppTemplate{T,Tuple{TDargs.parameters...}}
-    #         if valuecvr
-    #             T = CxxQualType{T,CVR}
-    #         end
-    #         if wrapvalue
-    #             T = CppValue{T}
-    #         end
-    #         return T
-    #     end
+    # prune
     else
         cxxd = getAsCXXRecordDecl(t)
         if cxxd != C_NULL && isLambda(cxxd)

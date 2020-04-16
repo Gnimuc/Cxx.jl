@@ -136,9 +136,6 @@ getTargsSize(targs::rcpp"clang::TemplateArgumentList") =
 getTargsSize(targs::pcpp"clang::TemplateSpecializationType") =
     ccall((:getTSTTargsSize,libcxxffi),Csize_t,(Ptr{Cvoid},),targs)
 
-getNumParameters(targs::pcpp"clang::TemplateDecl") =
-    ccall((:getTDNumParameters,libcxxffi),Csize_t,(Ptr{Cvoid},),targs)
-
 getTargType(targ) = QualType(ccall((:getTargType,libcxxffi),Ptr{Cvoid},(Ptr{Cvoid},),targ))
 
 getTargTypeAtIdx(targs::Union{rcpp"clang::TemplateArgumentList",

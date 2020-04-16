@@ -10,18 +10,6 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <cstring>
-#include <type_traits>
-
-// More workarounds for old libstdc++
-#if defined(__GLIBCXX__) && !defined(__cpp_lib_is_final)
- namespace std {
-     /// is_final
-     template<typename _Tp>
-       struct is_final
-       : public integral_constant<bool, __is_final(_Tp)>
-       { };
- }
-#endif
 
 extern "C" {
     // Usually this is added by the linker, but we just do it ourselves, because we

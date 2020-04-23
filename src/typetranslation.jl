@@ -85,7 +85,7 @@ cppconvert(x) = x
 # overriden using the `addlast` parameter, which is useful when looking up a
 # prefix to a decl context, rather than a Decl itself.
 #
-# TODO: Figure out what we need to do if there's a template in the NNS.
+# TODO: Figure out what we need to do if there's a template in the Nested Name Space.
 # Originally there was code to handle this, but it was incorrect and apparently
 # never triggered in my original tests. Better to address that point when
 # we have a failing test case to verify we did it correctly.
@@ -207,56 +207,6 @@ function cpptype(C,::Type{T}) where T
         AnonClass = CreateAnonymousClass(C, translation_unit(C))
         MappedTypes[T] = typeForDecl(AnonClass)
         InverseMappedTypes[MappedTypes[T]] = T
-        # For callable julia types, also add an operator() method to the anonymous
-        # class
-        if !isempty(T.name.mt)
-            linfo = T.name.mt.defs.func
-            sig = T.name.mt.defs.sig
-            nargt = length(sig.parameters)-1
-            tt = Tuple{T, (Any for _ in 1:nargt)...}
-            retty = latest_world_return_type(tt)
-            if isa(retty,Union) || isabstracttype(retty) || retty === Union{}
-              error("Inferred Union or abstract type $retty for return value of lambda")
-            end
-            # Ok, now we need to figure out what arguments we need to declare to C++. For that purpose,
-            # go through the list of defined arguments. Any type that's concrete will be declared as such
-            # to C++, anything else will get a template parameter.
-            tparamnum = 1
-            TPs = Any[]
-            argtQTs = QualType[]
-            for argt in sig.parameters[2:end]
-                if argt.abstract
-                    TP = ActOnTypeParameter(C,string("param",tparamnum),tparamnum-1)
-                    push!(argtQTs,RValueRefernceTo(C,QualType(typeForDecl(TP))))
-                    push!(TPs, TP)
-                    tparamnum += 1
-                else
-                    push!(argtQTs, cpptype(C, argt))
-                end
-            end
-            if isempty(TPs)
-                Method = CreateCxxCallMethodDecl(C, AnonClass, makeFunctionType(C, cpptype(C, retty), argtQTs))
-                AddCallOpToClass(AnonClass, Method)
-                f = get_llvmf_decl(tt)
-                @assert f != C_NULL
-                FinalizeAnonClass(C, AnonClass)
-                ReplaceFunctionForDecl(C, Method,f, DoInline = false, specsig =
-                    isbits_spec(T, false) || isbits_spec(retty, false),
-                    NeedsBoxed = [false], FirstIsEnv = true, retty = retty, jts = Any[T])
-            else
-                Params = CreateTemplateParameterList(C,TPs)
-                Method = CreateCxxCallMethodDecl(C, AnonClass, makeFunctionType(C, cpptype(C, retty), argtQTs))
-                params = pcpp"clang::ParmVarDecl"[
-                    CreateParmVarDecl(C, argt,string("__juliavar",i)) for (i,argt) in enumerate(argtQTs)]
-                SetFDParams(Method,params)
-                D = CreateFunctionTemplateDecl(C,toctx(AnonClass),Params,Method)
-                AddDeclToDeclCtx(toctx(AnonClass),pcpp"clang::Decl"(convert(Ptr{Cvoid}, D)))
-                FinalizeAnonClass(C, AnonClass)
-            end
-        end
-
-        # Anything that you want C++ to be able to do with a julia object
-        # needs to be declared here.
     end
     catch err
         delete!(MappedTypes,T)

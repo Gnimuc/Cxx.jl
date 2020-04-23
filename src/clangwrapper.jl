@@ -179,14 +179,6 @@ CreatePointerFromObjref(C, builder, val) =
     pcpp"llvm::Value"(ccall((:CreatePointerFromObjref,libcxxffi),Ptr{Cvoid},
         (Ref{ClangCompiler},Ptr{Cvoid},Ptr{Cvoid}),C,builder,val))
 
-EmitCXXNewExpr(C,E::pcpp"clang::Expr") = pcpp"llvm::Value"(
-    ccall((:EmitCXXNewExpr,libcxxffi),Ptr{Cvoid},(Ref{ClangCompiler},Ptr{Cvoid},),C,E))
-
-function EmitAnyExprToMem(C,expr,mem,isInit)
-    ccall((:emitexprtomem,libcxxffi),Cvoid,
-        (Ref{ClangCompiler},Ptr{Cvoid},Ptr{Cvoid},Cint),C,expr,mem,isInit)
-end
-
 function EmitCallExpr(C,ce,rslot)
     pcpp"llvm::Value"(ccall((:emitcallexpr,libcxxffi),Ptr{Cvoid},
         (Ref{ClangCompiler},Ptr{Cvoid},Ptr{Cvoid}),C,ce,rslot))
@@ -494,8 +486,6 @@ getTemplatedDecl(T::pcpp"clang::TemplateDecl") = pcpp"clang::NamedDecl"(ccall((:
 getArrayElementType(T::pcpp"clang::Type") = QualType(ccall((:getArrayElementType, libcxxffi), Ptr{Cvoid}, (Ptr{Cvoid},), T))
 
 getIncompleteArrayType(C, T) = QualType(ccall((:getIncompleteArrayType,libcxxffi),Ptr{Cvoid},(Ref{ClangCompiler},Ptr{Cvoid}),C,T))
-
-ParseDeclaration(C,scope=pcpp"clang::DeclContext"(C_NULL)) = pcpp"clang::NamedDecl"(ccall((:ParseDeclaration,libcxxffi),Ptr{Cvoid},(Ref{ClangCompiler},Ptr{Cvoid}),C,scope))
 
 getOriginalType(PVD::pcpp"clang::ParmVarDecl") = QualType(ccall((:getOriginalType,libcxxffi),Ptr{Cvoid},(Ptr{Cvoid},),PVD))
 

@@ -222,24 +222,6 @@ JL_DLLEXPORT int _cxxparse(CxxInstance *Cxx)
     return 1;
 }
 
-JL_DLLEXPORT void *ParseDeclaration(CxxInstance *Cxx, clang::DeclContext *DCScope)
-{
-  auto  *P = Cxx->Parser;
-  auto  *S = &Cxx->CI->getSema();
-  if (P->getPreprocessor().isIncrementalProcessingEnabled() &&
-     P->getCurToken().is(clang::tok::eof))
-         P->ConsumeToken();
-  clang::ParsingDeclSpec DS(*P);
-  clang::AccessSpecifier AS;
-  P->ParseDeclarationSpecifiers(DS, clang::Parser::ParsedTemplateInfo(), AS, clang::Parser::DeclSpecContext::DSC_top_level);
-  clang::ParsingDeclarator D(*P, DS, clang::DeclaratorContext::FileContext);
-  P->ParseDeclarator(D);
-  D.setFunctionDefinitionKind(clang::FDK_Definition);
-  clang::Scope *TheScope = DCScope ? S->getScopeForContext(DCScope) : P->getCurScope();
-  assert(TheScope);
-  return S->HandleDeclarator(TheScope, D, clang::MultiTemplateParamsArg());
-}
-
 JL_DLLEXPORT void *ParseTypeName(CxxInstance *Cxx, int ParseAlias = false)
 {
   if (Cxx->Parser->getPreprocessor().isIncrementalProcessingEnabled() &&
@@ -848,12 +830,6 @@ JL_DLLEXPORT void ActOnFinishNamespaceDef(CxxInstance *Cxx, clang::Decl *D)
 }
 
 // For codegen.jl
-
-JL_DLLEXPORT void *EmitCXXNewExpr(CxxInstance *Cxx, clang::Expr *E)
-{
-  assert(isa<clang::CXXNewExpr>(E));
-  return (void*)Cxx->CGF->EmitCXXNewExpr(cast<clang::CXXNewExpr>(E));
-}
 
 JL_DLLEXPORT void *build_call_to_member(CxxInstance *Cxx, clang::Expr *MemExprE, clang::Expr **exprs, size_t nexprs)
 {
@@ -1621,13 +1597,6 @@ JL_DLLEXPORT void *emitcallexpr(CxxInstance *Cxx, clang::Expr *E, llvm::Value *r
       return ret.getScalarVal();
     else
       return ret.getAggregateAddress().getPointer();
-}
-
-JL_DLLEXPORT void emitexprtomem(CxxInstance *Cxx,clang::Expr *E, llvm::Value *addr, int isInit)
-{
-    Cxx->CGF->EmitAnyExprToMem(E,
-      clang::CodeGen::Address(addr,clang::CharUnits::One()),
-      clang::Qualifiers(), isInit);
 }
 
 JL_DLLEXPORT void *get_nth_argument(Function *f, size_t n)

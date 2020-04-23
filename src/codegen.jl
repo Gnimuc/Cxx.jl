@@ -155,11 +155,6 @@ function EmitExpr(C,ce,nE,ctce, argt, pvds, rett = Cvoid; kwargs...)
         if rett <: CppValue
             ret = C_NULL
         end
-    elseif nE != C_NULL
-        ret = EmitCXXNewExpr(C,nE)
-    elseif ctce != C_NULL
-        MarkDeclarationsReferencedInExpr(C,ctce)
-        EmitAnyExprToMem(C,ctce,args[1],true)
     end
 
     # Common return path for everything that's calling a normal function

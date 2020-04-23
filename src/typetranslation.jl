@@ -143,8 +143,7 @@ end
 function typeForDecl(d::Union{
         # Luckily Decl is the first base for these, so we can get away
         # with only one function on the C++ side that takes a Decl*
-        pcpp"clang::Decl",pcpp"clang::CXXRecordDecl",
-        pcpp"clang::ClassTemplateSpecializationDecl"})
+        pcpp"clang::Decl",pcpp"clang::CXXRecordDecl"})
     @assert d != C_NULL
     pcpp"clang::Type"(ccall((:typeForDecl,libcxxffi),Ptr{Cvoid},(Ptr{Cvoid},),d))
 end
@@ -198,8 +197,7 @@ cpptype(C,p::Type{CppFptr{f}}) where {f} = pointerTo(C,cpptype(C,f))
 
 const MappedTypes = Dict{Type, QualType}()
 const InverseMappedTypes = Dict{QualType, Type}()
-isbits_spec(T, allow_singleton = true) = isbitstype(T) && isconcretetype(T) &&
-    (allow_singleton || (sizeof(T) > 0 || fieldcount(T) > 0))
+
 function cpptype(C,::Type{T}) where T
     (!(T === Union) && !T.abstract) || error("Cannot create C++ equivalent for abstract types")
     try
